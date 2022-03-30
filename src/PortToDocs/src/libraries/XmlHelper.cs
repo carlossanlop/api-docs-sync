@@ -30,7 +30,9 @@ namespace ApiDocsSync.Libraries
             { "Null ",          "<see langword=\"null\" /> " },
             { "True ",          "<see langword=\"true\" /> " },
             { "False ",         "<see langword=\"false\" /> " },
-            { "></see>",        " />" }
+            { "></see>",        " />" },
+            { "<p>",            "<para>" },
+            { "</p>",           "</para>" },
         };
 
         private static readonly Dictionary<string, string> _replaceableNormalElementRegexPatterns = new Dictionary<string, string>
@@ -77,6 +79,8 @@ namespace ApiDocsSync.Libraries
             { "False ",                      "`false` " },
             { "<c>",                         "`"},
             { "</c>",                        "`"},
+            { "<p>",                         "" },
+            { "</p>",                        "\r\n\r\n" },
             { "<para>",                      "" },
             { "</para>",                     "\r\n\r\n" },
             { "\" />",                       ">" },

@@ -664,6 +664,97 @@ Typeparamref `T`.
             TestWithStrings(originalIntellisense, originalDocs, expectedDocs);
         }
 
+        [Fact]
+        public void Convert_HtmlP_To_Para()
+        {
+            // The html <p></p> must be converted to <para></para> when found inside xml elements.
+
+            string originalIntellisense = @"<?xml version=""1.0""?>
+<doc>
+  <assembly>
+    <name>MyAssembly</name>
+  </assembly>
+  <members>
+    <member name=""T:MyNamespace.MyType"">
+      <summary>Type summary. Here is a <p>paragraph</p> that needs to be converted to para.</summary>
+    </member>
+    <member name=""M:MyNamespace.MyType.MyMethod"">
+      <summary><p>This is a multiline</p><p> that needs to be converted to para.</p></summary>
+      <remarks><p>If found in remarks,</p><p>need to convert them to double newlines.</p></remarks>
+    </member>
+  </members>
+</doc>";
+
+            string originalDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>To be added.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>To be added.</summary>
+        <remarks>To be added.</remarks>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            string expectedDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>Type summary. Here is a <para>paragraph</para> that needs to be converted to para.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>
+          <para>This is a multiline</para>
+          <para> that needs to be converted to para.</para>
+        </summary>
+        <remarks>
+          <format type=""text/markdown""><![CDATA[
+
+## Remarks
+
+If found in remarks,
+
+need to convert them to double newlines.
+
+          ]]></format>
+        </remarks>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            TestWithStrings(originalIntellisense, originalDocs, expectedDocs);
+        }
+
         private static void TestWithStrings(string originalIntellisense, string originalDocs, string expectedDocs)
         {
             Configuration configuration = new Configuration();
