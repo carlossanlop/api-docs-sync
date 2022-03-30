@@ -195,9 +195,31 @@ namespace ApiDocsSync.Libraries.Docs
             XElement exception = new XElement("exception");
             exception.SetAttributeValue("cref", cref);
             XmlHelper.SaveFormattedAsXml(exception, value, removeUndesiredEndlines: false);
-            Docs.Add(exception);
+
+            XElement? xElement;
+            if (Exceptions.Any())
+            {
+                xElement = Exceptions.Last().XEException;
+            }
+            else
+            {
+                xElement = Docs.Element("remarks");
+            }
+
+            if (xElement != null)
+            {
+                xElement.AddAfterSelf(exception);
+            }
+            else
+            {
+                // Fallback in case no existing exceptions were found, or no remarks section
+                Docs.Add(exception);
+            }
+
             Changed = true;
-            return new DocsException(this, exception);
+            DocsException newException = new DocsException(this, exception);
+            Exceptions.Add(newException);
+            return newException;
         }
     }
 }

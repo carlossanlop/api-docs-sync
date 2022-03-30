@@ -665,7 +665,7 @@ Typeparamref `T`.
         }
 
         [Fact]
-        public void Convert_HtmlP_To_Para()
+        public void Convert_P_To_Para()
         {
             // The html <p></p> must be converted to <para></para> when found inside xml elements.
 
@@ -747,6 +747,333 @@ need to convert them to double newlines.
 
           ]]></format>
         </remarks>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            TestWithStrings(originalIntellisense, originalDocs, expectedDocs);
+        }
+
+        [Fact]
+        public void Exceptions_PortNew()
+        {
+            string originalIntellisense = @"<?xml version=""1.0""?>
+<doc>
+  <assembly>
+    <name>MyAssembly</name>
+  </assembly>
+  <members>
+    <member name=""T:MyNamespace.MyType"">
+      <summary>This is the type summary.</summary>
+    </member>
+    <member name=""M:MyNamespace.MyType.MyMethod"">
+      <summary>This is the method summary.</summary>
+      <exception cref=""T:System.ArgumentNullException"">Exception 1.</exception>
+      <exception cref=""T:System.ArgumentException"">Exception 2. Preserve order.</exception>
+    </member>
+  </members>
+</doc>";
+
+            string originalDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>To be added.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>To be added.</summary>
+        <remarks>To be added.</remarks>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            string expectedDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>This is the type summary.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>This is the method summary.</summary>
+        <remarks>To be added.</remarks>
+        <exception cref=""T:System.ArgumentNullException"">Exception 1.</exception>
+        <exception cref=""T:System.ArgumentException"">Exception 2. Preserve order.</exception>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            TestWithStrings(originalIntellisense, originalDocs, expectedDocs);
+        }
+
+        [Fact]
+        public void Exceptions_DoNotOverwriteExisting()
+        {
+            string originalIntellisense = @"<?xml version=""1.0""?>
+<doc>
+  <assembly>
+    <name>MyAssembly</name>
+  </assembly>
+  <members>
+    <member name=""T:MyNamespace.MyType"">
+      <summary>This is the type summary.</summary>
+    </member>
+    <member name=""M:MyNamespace.MyType.MyMethod"">
+      <summary>This is the method summary.</summary>
+      <exception cref=""T:System.ArgumentNullException"">Exception 1.</exception>
+      <exception cref=""T:System.ArgumentException"">Exception 2. Preserve order.</exception>
+    </member>
+  </members>
+</doc>";
+
+            string originalDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>To be added.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>To be added.</summary>
+        <remarks>To be added.</remarks>
+        <exception cref=""T:System.ArgumentNullException"">I already existed.</exception>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            string expectedDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>This is the type summary.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>This is the method summary.</summary>
+        <remarks>To be added.</remarks>
+        <exception cref=""T:System.ArgumentNullException"">I already existed.</exception>
+        <exception cref=""T:System.ArgumentException"">Exception 2. Preserve order.</exception>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            TestWithStrings(originalIntellisense, originalDocs, expectedDocs);
+        }
+
+        [Fact]
+        public void Exceptions_PreserveNewLines()
+        {
+            string originalIntellisense = @"<?xml version=""1.0""?>
+<doc>
+  <assembly>
+    <name>MyAssembly</name>
+  </assembly>
+  <members>
+    <member name=""T:MyNamespace.MyType"">
+      <summary>This is the type summary.</summary>
+    </member>
+    <member name=""M:MyNamespace.MyType.MyMethod"">
+      <summary>This is the method summary.</summary>
+      <exception cref=""T:System.ArgumentNullException"">First summary.
+
+-or-
+
+Second summary.</exception>
+    </member>
+  </members>
+</doc>";
+
+            string originalDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>To be added.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>To be added.</summary>
+        <remarks>To be added.</remarks>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            string expectedDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>This is the type summary.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>This is the method summary.</summary>
+        <remarks>To be added.</remarks>
+        <exception cref=""T:System.ArgumentNullException"">First summary.
+
+-or-
+
+Second summary.</exception>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            TestWithStrings(originalIntellisense, originalDocs, expectedDocs);
+        }
+
+        [Fact]
+        public void Exceptions_ColocateTogether()
+        {
+            string originalIntellisense = @"<?xml version=""1.0""?>
+<doc>
+  <assembly>
+    <name>MyAssembly</name>
+  </assembly>
+  <members>
+    <member name=""T:MyNamespace.MyType"">
+      <summary>This is the type summary.</summary>
+    </member>
+    <member name=""M:MyNamespace.MyType.MyMethod"">
+      <summary>This is the method summary.</summary>
+      <exception cref=""T:System.ArgumentNullException"">Exception 1.</exception>
+      <exception cref=""T:System.ArgumentException"">Exception 2. Preserve order.</exception>
+    </member>
+  </members>
+</doc>";
+
+            string originalDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>To be added.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>To be added.</summary>
+        <remarks>To be added.</remarks>
+        <exception cref=""T:System.IndexOutOfRangeException"">Exception 0.</exception>
+        <related type=""Article"" href=""/dotnet/url"">Content Page</related>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            string expectedDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>This is the type summary.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyType.MyMethod"" />
+      <MemberType>Method</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Void</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>This is the method summary.</summary>
+        <remarks>To be added.</remarks>
+        <exception cref=""T:System.IndexOutOfRangeException"">Exception 0.</exception>
+        <exception cref=""T:System.ArgumentNullException"">Exception 1.</exception>
+        <exception cref=""T:System.ArgumentException"">Exception 2. Preserve order.</exception>
+        <related type=""Article"" href=""/dotnet/url"">Content Page</related>
       </Docs>
     </Member>
   </Members>

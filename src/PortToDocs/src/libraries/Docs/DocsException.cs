@@ -9,7 +9,7 @@ namespace ApiDocsSync.Libraries.Docs
 {
     internal class DocsException
     {
-        private readonly XElement XEException;
+        internal readonly XElement XEException;
 
         public IDocsAPI ParentAPI
         {
