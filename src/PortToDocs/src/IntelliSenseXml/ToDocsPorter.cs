@@ -3,108 +3,60 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Text;
 using System.Xml.Linq;
 using ApiDocsSync.Libraries.Docs;
-using ApiDocsSync.Libraries.IntelliSenseXml;
 
-namespace ApiDocsSync.Libraries
+namespace ApiDocsSync.Libraries.IntelliSenseXml
 {
     public class ToDocsPorter
     {
-        private readonly Configuration Config;
-        private readonly DocsCommentsContainer DocsComments;
-        private readonly IntelliSenseXmlCommentsContainer IntelliSenseXmlComments;
+        private readonly Configuration _config;
+        private readonly DocsCommentsContainer _docsComments;
+        private readonly IntelliSenseXmlCommentsContainer _intelliSenseXmlComments;
 
-        private readonly List<string> ModifiedFiles = new List<string>();
-        private readonly List<string> ModifiedTypes = new List<string>();
-        private readonly List<string> ModifiedAPIs = new List<string>();
-        private readonly List<string> ProblematicAPIs = new List<string>();
-        private readonly List<string> AddedExceptions = new List<string>();
+        private readonly List<string> _modifiedFiles;
+        private readonly List<string> _modifiedTypes;
+        private readonly List<string> _modifiedAPIs;
+        private readonly List<string> _problematicAPIs;
+        private readonly List<string> _addedExceptions;
 
-        private int TotalModifiedIndividualElements = 0;
+        private int _totalModifiedIndividualElements = 0;
 
         public ToDocsPorter(Configuration config)
         {
-            Config = config;
-            DocsComments = new DocsCommentsContainer(config);
-            IntelliSenseXmlComments = new IntelliSenseXmlCommentsContainer(config);
-
+            _config = config;
+            _docsComments = new DocsCommentsContainer(config.Docs);
+            _intelliSenseXmlComments = new IntelliSenseXmlCommentsContainer(config);
+            _modifiedFiles = new List<string>();
+            _modifiedTypes = new List<string>();
+            _modifiedAPIs = new List<string>();
+            _problematicAPIs = new List<string>();
+            _addedExceptions = new List<string>();
         }
 
         public void CollectFiles()
         {
-            Log.Info("Looking for IntelliSense xml files...");
-            Config.VerifyIntellisenseXmlFiles();
-
-            foreach (FileInfo fileInfo in IntelliSenseXmlComments.EnumerateFiles())
-            {
-                XDocument? xDoc = null;
-                try
-                {
-                    xDoc = XDocument.Load(fileInfo.FullName);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"Failed to load '{fileInfo.FullName}'. {ex}");
-                }
-
-                if (xDoc != null)
-                {
-                    IntelliSenseXmlComments.LoadIntellisenseXmlFile(xDoc, fileInfo.FullName);
-                }
-            }
-            Log.Success("Finished looking for IntelliSense xml files.");
-            Log.Line();
-
-            Log.Info("Looking for Docs xml files...");
-            Config.VerifyDocsFiles();
-
-            foreach (FileInfo fileInfo in DocsComments.EnumerateFiles())
-            {
-                XDocument? xDoc = null;
-                Encoding? encoding = null;
-                try
-                {
-                    var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-                    var utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
-                    using (StreamReader sr = new(fileInfo.FullName, utf8NoBom, detectEncodingFromByteOrderMarks: true))
-                    {
-                        xDoc = XDocument.Load(sr);
-                        encoding = sr.CurrentEncoding;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"Failed to load '{fileInfo.FullName}'. {ex}");
-                }
-
-                if (xDoc != null && encoding != null)
-                {
-                    DocsComments.LoadDocsFile(xDoc, fileInfo.FullName, encoding);
-                }
-            }
-            Log.Success("Finished looking for Docs xml files.");
-            Log.Line();
+            _intelliSenseXmlComments.CollectFiles();
+            _docsComments.CollectFiles();
         }
 
         public void LoadIntellisenseXmlFile(XDocument xDoc, string filePath) =>
-            IntelliSenseXmlComments.LoadIntellisenseXmlFile(xDoc, filePath);
+            _intelliSenseXmlComments.LoadIntellisenseXmlFile(xDoc, filePath);
 
         public void LoadDocsFile(XDocument xDoc, string filePath, Encoding encoding) =>
-            DocsComments.LoadDocsFile(xDoc, filePath, encoding);
+            _docsComments.LoadDocsFile(xDoc, filePath, encoding);
 
         public void Start()
         {
-            if (!IntelliSenseXmlComments.Members.Any())
+            if (!_intelliSenseXmlComments.Members.Any())
             {
                 Log.Error("No IntelliSense xml comments found.");
                 return;
             }
 
-            if (!DocsComments.Types.Any())
+            if (!_docsComments.Types.Any())
             {
                 Log.Error("No Docs Type APIs found.");
                 return;
@@ -113,7 +65,7 @@ namespace ApiDocsSync.Libraries
             PortMissingComments();
         }
 
-        public void SaveToDisk() => DocsComments.SaveToDisk();
+        public void SaveToDisk() => _docsComments.SaveToDisk();
 
         // Prints a final summary of the execution findings.
         public void PrintSummary()
@@ -121,50 +73,50 @@ namespace ApiDocsSync.Libraries
             PrintUndocumentedAPIs();
 
             Log.Line();
-            Log.Info($"Total modified files: {ModifiedFiles.Count}");
-            if (Config.PrintSummaryDetails)
+            Log.Info($"Total modified files: {_modifiedFiles.Count}");
+            if (_config.PrintSummaryDetails)
             {
-                foreach (string file in ModifiedFiles)
+                foreach (string file in _modifiedFiles)
                 {
                     Log.Success($"    - {file}");
                 }
                 Log.Line();
             }
 
-            Log.Info($"Total modified types: {ModifiedTypes.Count}");
-            if (Config.PrintSummaryDetails)
+            Log.Info($"Total modified types: {_modifiedTypes.Count}");
+            if (_config.PrintSummaryDetails)
             {
-                foreach (string type in ModifiedTypes)
+                foreach (string type in _modifiedTypes)
                 {
                     Log.Success($"    - {type}");
                 }
                 Log.Line();
             }
 
-            Log.Info($"Total modified APIs: {ModifiedAPIs.Count}");
-            if (Config.PrintSummaryDetails)
+            Log.Info($"Total modified APIs: {_modifiedAPIs.Count}");
+            if (_config.PrintSummaryDetails)
             {
-                foreach (string api in ModifiedAPIs)
+                foreach (string api in _modifiedAPIs)
                 {
                     Log.Success($"    - {api}");
                 }
             }
 
             Log.Line();
-            Log.Info($"Total problematic APIs: {ProblematicAPIs.Count}");
-            if (Config.PrintSummaryDetails)
+            Log.Info($"Total problematic APIs: {_problematicAPIs.Count}");
+            if (_config.PrintSummaryDetails)
             {
-                foreach (string api in ProblematicAPIs)
+                foreach (string api in _problematicAPIs)
                 {
                     Log.Warning($"    - {api}");
                 }
                 Log.Line();
             }
 
-            Log.Info($"Total added exceptions: {AddedExceptions.Count}");
-            if (Config.PrintSummaryDetails)
+            Log.Info($"Total added exceptions: {_addedExceptions.Count}");
+            if (_config.PrintSummaryDetails)
             {
-                foreach (string exception in AddedExceptions)
+                foreach (string exception in _addedExceptions)
                 {
                     Log.Success($"    - {exception}");
                 }
@@ -172,7 +124,7 @@ namespace ApiDocsSync.Libraries
             }
 
             Log.Info(false, "Total modified individual elements: ");
-            Log.Success($"{TotalModifiedIndividualElements}");
+            Log.Success($"{_totalModifiedIndividualElements}");
 
             Log.Line();
             Log.Success("---------");
@@ -186,14 +138,14 @@ namespace ApiDocsSync.Libraries
         {
             Log.Info("Looking for IntelliSense xml comments that can be ported...");
 
-            foreach (DocsType dTypeToUpdate in DocsComments.Types.Values)
+            foreach (DocsType dTypeToUpdate in _docsComments.Types.Values)
             {
                 PortMissingCommentsForType(dTypeToUpdate);
-            }
 
-            foreach (DocsMember dMemberToUpdate in DocsComments.Members.Values)
-            {
-                PortMissingCommentsForMember(dMemberToUpdate);
+                foreach (DocsMember dMemberToUpdate in dTypeToUpdate.Members.Values)
+                {
+                    PortMissingCommentsForMember(dMemberToUpdate);
+                }
             }
         }
 
@@ -201,7 +153,7 @@ namespace ApiDocsSync.Libraries
         private void PortMissingCommentsForType(DocsType dTypeToUpdate)
         {
             string docId = dTypeToUpdate.DocId;
-            if (IntelliSenseXmlComments.Members.TryGetValue(docId, out IntelliSenseXmlMember? tsTypeToPort) && tsTypeToPort.Name == docId)
+            if (_intelliSenseXmlComments.Members.TryGetValue(docId, out IntelliSenseXmlMember? tsTypeToPort) && tsTypeToPort.Name == docId)
             {
                 IntelliSenseXmlMember tsActualTypeToPort = tsTypeToPort;
 
@@ -229,8 +181,8 @@ namespace ApiDocsSync.Libraries
 
                 if (dTypeToUpdate.Changed)
                 {
-                    ModifiedTypes.AddIfNotExists(docId);
-                    ModifiedFiles.AddIfNotExists(dTypeToUpdate.FilePath);
+                    _modifiedTypes.AddIfNotExists(docId);
+                    _modifiedFiles.AddIfNotExists(dTypeToUpdate.FilePath);
                 }
             }
         }
@@ -242,7 +194,7 @@ namespace ApiDocsSync.Libraries
             // See if there is an inheritdoc cref indicating the exact member to use for docs
             if (!string.IsNullOrEmpty(tsTypeToPort.InheritDocCref))
             {
-                if (IntelliSenseXmlComments.Members.TryGetValue(tsTypeToPort.InheritDocCref, out IntelliSenseXmlMember? tsInheritedMember) && tsInheritedMember != null)
+                if (_intelliSenseXmlComments.Members.TryGetValue(tsTypeToPort.InheritDocCref, out IntelliSenseXmlMember? tsInheritedMember) && tsInheritedMember != null)
                 {
                     mc.Summary = tsInheritedMember.Summary;
                     mc.Returns = tsInheritedMember.Returns;
@@ -251,7 +203,7 @@ namespace ApiDocsSync.Libraries
             }
             // Look for the base type from which this one inherits
             else if (!string.IsNullOrEmpty(dTypeToUpdate.BaseTypeName) &&
-                DocsComments.Types.TryGetValue($"T:{dTypeToUpdate.BaseTypeName}", out DocsType? dBaseType) && dBaseType != null)
+                _docsComments.Types.TryGetValue($"T:{dTypeToUpdate.BaseTypeName}", out DocsType? dBaseType) && dBaseType != null)
             {
                 // If the base type is undocumented, try to document it
                 // so there's something to extract for the child type
@@ -276,7 +228,7 @@ namespace ApiDocsSync.Libraries
             bool isMethod = dMemberToUpdate.MemberType == "Method";
 
             MissingComments mc = default;
-            if (IntelliSenseXmlComments.Members.TryGetValue(dMemberToUpdate.DocId, out IntelliSenseXmlMember? tsMemberToPort) && tsMemberToPort != null)
+            if (_intelliSenseXmlComments.Members.TryGetValue(dMemberToUpdate.DocId, out IntelliSenseXmlMember? tsMemberToPort) && tsMemberToPort != null)
             {
                 // Rare case where the base type or interface docs should be used
                 if (tsMemberToPort.InheritDoc)
@@ -315,8 +267,8 @@ namespace ApiDocsSync.Libraries
 
                 if (dMemberToUpdate.Changed)
                 {
-                    ModifiedAPIs.AddIfNotExists(dMemberToUpdate.DocId);
-                    ModifiedFiles.AddIfNotExists(dMemberToUpdate.FilePath);
+                    _modifiedAPIs.AddIfNotExists(dMemberToUpdate.DocId);
+                    _modifiedFiles.AddIfNotExists(dMemberToUpdate.FilePath);
                 }
             }
         }
@@ -327,7 +279,7 @@ namespace ApiDocsSync.Libraries
 
             // See if there is an inheritdoc cref indicating the exact member to use for docs
             if (!string.IsNullOrEmpty(tsMemberToPort.InheritDocCref) &&
-                IntelliSenseXmlComments.Members.TryGetValue(tsMemberToPort.InheritDocCref, out IntelliSenseXmlMember? tsInheritedMember) && tsInheritedMember != null)
+                _intelliSenseXmlComments.Members.TryGetValue(tsMemberToPort.InheritDocCref, out IntelliSenseXmlMember? tsInheritedMember) && tsInheritedMember != null)
             {
                 mc.Summary = tsInheritedMember.Summary;
                 mc.Returns = isMethod ? tsInheritedMember.Returns : null;
@@ -335,16 +287,16 @@ namespace ApiDocsSync.Libraries
                 mc.Property = isProperty ? GetPropertyValue(tsInheritedMember.Value, tsInheritedMember.Returns) : null;
             }
             // Look for the base type and find the member from which this one inherits
-            else if (DocsComments.Types.TryGetValue($"T:{dMemberToUpdate.ParentType.DocId}", out DocsType? dBaseType) && dBaseType != null)
+            else if (_docsComments.Types.TryGetValue($"T:{dMemberToUpdate.ParentType.DocId}", out DocsType? dBaseType) && dBaseType != null)
             {
                 // Get all the members of the base type
-                var membersOfParentType = DocsComments.Members.Where(kvp => kvp.Value.ParentType.FullName == dBaseType.FullName);
+                IEnumerable<KeyValuePair<string, DocsMember>> membersOfParentType = dBaseType.Members.Where(kvp => kvp.Value.ParentType.FullName == dBaseType.FullName);
                 if (membersOfParentType.Any())
                 {
                     DocsMember? dBaseMember = null;
                     string unprefixedDocId = dMemberToUpdate.DocId[2..];
                     string baseTypeDocId = dBaseType.DocId[2..];
-                    foreach (var kvp in membersOfParentType)
+                    foreach (KeyValuePair<string, DocsMember> kvp in membersOfParentType)
                     {
                         string currentDocId = kvp.Value.DocId[2..];
                         // Replace the prefix of the base type member API with the prefix of the member API to document
@@ -384,7 +336,7 @@ namespace ApiDocsSync.Libraries
             mc.Returns = isMethod ? dInterfacedMember.Returns : null;
             mc.Property = isProperty ? GetPropertyValue(dInterfacedMember.Value, dInterfacedMember.Returns) : null;
 
-            if (!dInterfacedMember.Remarks.IsDocsEmpty())
+            if (!dInterfacedMember.IsRemarksEmpty())
             {
                 // Only attempt to port if the member name is the same as the interfaced member docid without prefix
                 if (dMemberToUpdate.MemberName == dInterfacedMember.DocId[2..])
@@ -396,7 +348,7 @@ namespace ApiDocsSync.Libraries
                     string eiiMessage = $"This member is an explicit interface member implementation. It can be used only when the <xref:{dMemberToUpdateTypeDocIdNoPrefix}> instance is cast to an <xref:{interfacedMemberTypeDocIdNoPrefix}> interface.";
 
                     string cleanedInterfaceRemarks = string.Empty;
-                    if (!dInterfacedMember.Remarks.Contains(Configuration.ToBeAdded))
+                    if (!dInterfacedMember.Remarks.Contains(DocsAPI.ToBeAdded))
                     {
                         string interfaceMemberRemarks = dInterfacedMember.Remarks.RemoveSubstrings("##Remarks", "## Remarks", "<![CDATA[", "]]>").Trim();
                         string[] splitted = interfaceMemberRemarks.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -413,7 +365,7 @@ namespace ApiDocsSync.Libraries
 
                     // Only port the interface remarks if the user desired that
                     // Otherwise, always add the EII special message
-                    mc.Remarks = eiiMessage + (!Config.SkipInterfaceRemarks ? Environment.NewLine + Environment.NewLine + cleanedInterfaceRemarks : string.Empty);
+                    mc.Remarks = eiiMessage + (!_config.SkipInterfaceRemarks ? Environment.NewLine + Environment.NewLine + cleanedInterfaceRemarks : string.Empty);
 
                     mc.IsEII = true;
                 }
@@ -423,14 +375,14 @@ namespace ApiDocsSync.Libraries
         }
 
         // Issue: sometimes properties have their TS string in Value, sometimes in Returns
-        private string? GetPropertyValue(string value, string returns)
+        private static string? GetPropertyValue(string value, string returns)
         {
             string? property = null;
-            if (!value.IsDocsEmpty())
+            if (!value.IsIntelliSenseEmpty())
             {
                 property = value;
             }
-            else if (!returns.IsDocsEmpty())
+            else if (!returns.IsIntelliSenseEmpty())
             {
                 property = returns;
             }
@@ -442,12 +394,12 @@ namespace ApiDocsSync.Libraries
         {
             interfacedMember = null;
 
-            if (!Config.SkipInterfaceImplementations && dApiToUpdate is DocsMember member)
+            if (!_config.SkipInterfaceImplementations && dApiToUpdate is DocsMember member)
             {
                 string interfacedMemberDocId = member.ImplementsInterfaceMember;
                 if (!string.IsNullOrEmpty(interfacedMemberDocId))
                 {
-                    DocsComments.Members.TryGetValue(interfacedMemberDocId, out interfacedMember);
+                    _docsComments.AllMembers.TryGetValue(interfacedMemberDocId, out interfacedMember);
                     return interfacedMember != null;
                 }
             }
@@ -458,28 +410,28 @@ namespace ApiDocsSync.Libraries
         // Ports the summary for the specified API if the field is undocumented.
         private void TryPortMissingSummaryForAPI(IDocsAPI dApiToUpdate, string? summary, bool isEII = false)
         {
-            if (dApiToUpdate.Kind == APIKind.Type && !Config.PortTypeSummaries ||
-                dApiToUpdate.Kind == APIKind.Member && !Config.PortMemberSummaries)
+            if (dApiToUpdate.Kind == APIKind.Type && !_config.PortTypeSummaries ||
+                dApiToUpdate.Kind == APIKind.Member && !_config.PortMemberSummaries)
             {
                 return;
             }
 
             // Only port if undocumented in MS Docs
-            if (dApiToUpdate.Summary.IsDocsEmpty() && !summary.IsDocsEmpty())
+            if (dApiToUpdate.IsSummaryEmpty() && !summary.IsIntelliSenseEmpty())
             {
                 dApiToUpdate.Summary = summary!;
 
                 // Any member can have an empty summary
                 PrintModifiedMember("summary", dApiToUpdate.FilePath, dApiToUpdate.DocId, isEII);
-                TotalModifiedIndividualElements++;
+                _totalModifiedIndividualElements++;
             }
         }
 
         // Ports the remarks for the specified API if the field is undocumented.
         private void TryPortMissingRemarksForAPI(IDocsAPI dApiToUpdate, string? remarks, bool isEII = false)
         {
-            if (dApiToUpdate.Kind == APIKind.Type && !Config.PortTypeRemarks ||
-                dApiToUpdate.Kind == APIKind.Member && !Config.PortMemberRemarks)
+            if (dApiToUpdate.Kind == APIKind.Type && !_config.PortTypeRemarks ||
+                dApiToUpdate.Kind == APIKind.Member && !_config.PortMemberRemarks)
             {
                 return;
             }
@@ -492,19 +444,19 @@ namespace ApiDocsSync.Libraries
                 return;
             }
 
-            if (dApiToUpdate.Remarks.IsDocsEmpty() && !remarks.IsDocsEmpty())
+            if (dApiToUpdate.IsRemarksEmpty() && !remarks.IsIntelliSenseEmpty())
             {
                 dApiToUpdate.Remarks = remarks!;
                 PrintModifiedMember("remarks", dApiToUpdate.FilePath, dApiToUpdate.DocId, isEII);
-                TotalModifiedIndividualElements++;
+                _totalModifiedIndividualElements++;
             }
         }
 
         // Ports all the parameter descriptions for the specified API if any of them is undocumented.
         private void TryPortMissingParamsForAPI(IDocsAPI dApiToUpdate, IntelliSenseXmlMember? tsMemberToPort, DocsMember? interfacedMember)
         {
-            if (dApiToUpdate.Kind == APIKind.Type && !Config.PortTypeParams /* Params of a Type */ ||
-                dApiToUpdate.Kind == APIKind.Member && !Config.PortMemberParams)
+            if (dApiToUpdate.Kind == APIKind.Type && !_config.PortTypeParams /* Params of a Type */ ||
+                dApiToUpdate.Kind == APIKind.Member && !_config.PortMemberParams)
             {
                 return;
             }
@@ -518,7 +470,8 @@ namespace ApiDocsSync.Libraries
             {
                 foreach (DocsParam dParam in dApiToUpdate.Params)
                 {
-                    if (dParam.Value.IsDocsEmpty())
+                    bool isDocumented = false;
+                    if (dParam.IsDocsEmpty())
                     {
                         created = false;
                         isEII = false;
@@ -531,16 +484,16 @@ namespace ApiDocsSync.Libraries
                         if (tsParam == null)
                         {
                             string msg;
-                            if (tsMemberToPort.Params.Count() == 0)
+                            if (tsMemberToPort.Params.Count == 0)
                             {
                                 msg = $"There were no IntelliSense xml comments for param {dParam.Name} in Member DocId {dApiToUpdate.DocId}";
-                                ProblematicAPIs.AddIfNotExists(msg);
+                                _problematicAPIs.AddIfNotExists(msg);
                                 Log.Warning(msg);
                             }
-                            else if (tsMemberToPort.Params.Count() != dApiToUpdate.Params.Count())
+                            else if (tsMemberToPort.Params.Count != dApiToUpdate.Params.Count)
                             {
                                 msg = $"The total number of params does not match between IntelliSense and Docs members {dApiToUpdate.DocId}";
-                                ProblematicAPIs.AddIfNotExists(msg);
+                                _problematicAPIs.AddIfNotExists(msg);
                                 Log.Warning(msg);
                             }
                             else
@@ -549,18 +502,19 @@ namespace ApiDocsSync.Libraries
                                 if (newTsParam == null)
                                 {
                                     msg = $"The param {dParam.Name} was not found in IntelliSense xml for {dApiToUpdate.DocId}";
-                                    ProblematicAPIs.AddIfNotExists(msg);
+                                    _problematicAPIs.AddIfNotExists(msg);
                                     Log.Error(msg);
                                 }
                                 else
                                 {
                                     // Now attempt to document it
-                                    if (!newTsParam.Value.IsDocsEmpty())
+                                    if (!newTsParam.IsIntelliSenseEmpty())
                                     {
                                         // try to port IntelliSense xml comments
                                         dParam.Value = newTsParam.Value;
                                         name = newTsParam.Name;
                                         value = newTsParam.Value;
+                                        isDocumented = true;
                                     }
                                     // or try to find if it implements a documented interface
                                     else if (interfacedMember != null)
@@ -572,18 +526,20 @@ namespace ApiDocsSync.Libraries
                                             name = interfacedParam.Name;
                                             value = interfacedParam.Value;
                                             isEII = true;
+                                            isDocumented = true;
                                         }
                                     }
                                 }
                             }
                         }
                         // Attempt to port
-                        else if (!tsParam.Value.IsDocsEmpty())
+                        else if (!tsParam.IsIntelliSenseEmpty())
                         {
                             // try to port IntelliSense xml comments
                             dParam.Value = tsParam.Value;
                             name = tsParam.Name;
                             value = tsParam.Value;
+                            isDocumented = true;
                         }
                         // or try to find if it implements a documented interface
                         else if (interfacedMember != null)
@@ -595,14 +551,15 @@ namespace ApiDocsSync.Libraries
                                 name = interfacedParam.Name;
                                 value = interfacedParam.Value;
                                 isEII = true;
+                                isDocumented = true;
                             }
                         }
 
 
-                        if (!value.IsDocsEmpty())
+                        if (isDocumented)
                         {
                             PrintModifiedMember($"param '{name}'", dApiToUpdate.FilePath, dApiToUpdate.DocId, isEII);
-                            TotalModifiedIndividualElements++;
+                            _totalModifiedIndividualElements++;
                         }
                     }
                 }
@@ -611,14 +568,14 @@ namespace ApiDocsSync.Libraries
             {
                 foreach (DocsParam dParam in dApiToUpdate.Params)
                 {
-                    if (dParam.Value.IsDocsEmpty())
+                    if (dParam.IsDocsEmpty())
                     {
                         DocsParam? interfacedParam = interfacedMember.Params.FirstOrDefault(x => x.Name == dParam.Name);
-                        if (interfacedParam != null && !interfacedParam.Value.IsDocsEmpty())
+                        if (interfacedParam != null && !interfacedParam.IsDocsEmpty())
                         {
                             dParam.Value = interfacedParam.Value;
                             PrintModifiedMember($"param '{dParam.Name}'", dApiToUpdate.FilePath, dApiToUpdate.DocId, isEII);
-                            TotalModifiedIndividualElements++;
+                            _totalModifiedIndividualElements++;
                         }
                     }
                 }
@@ -629,8 +586,8 @@ namespace ApiDocsSync.Libraries
         private void TryPortMissingTypeParamsForAPI(IDocsAPI dApiToUpdate, IntelliSenseXmlMember? tsMemberToPort, DocsMember? interfacedMember)
         {
 
-            if (dApiToUpdate.Kind == APIKind.Type && !Config.PortTypeTypeParams /* TypeParams of a Type */ ||
-                dApiToUpdate.Kind == APIKind.Member && !Config.PortMemberTypeParams)
+            if (dApiToUpdate.Kind == APIKind.Type && !_config.PortTypeTypeParams /* TypeParams of a Type */ ||
+                dApiToUpdate.Kind == APIKind.Member && !_config.PortMemberTypeParams)
             {
                 return;
             }
@@ -644,7 +601,8 @@ namespace ApiDocsSync.Libraries
             {
                 foreach (DocsTypeParam dTypeParam in dApiToUpdate.TypeParams)
                 {
-                    if (dTypeParam.Value.IsDocsEmpty())
+                    bool isDocumented = false;
+                    if (dTypeParam.IsDocsEmpty())
                     {
                         created = false;
                         isEII = false;
@@ -657,16 +615,16 @@ namespace ApiDocsSync.Libraries
                         if (tsTypeParam == null)
                         {
                             string msg;
-                            if (tsMemberToPort.TypeParams.Count() == 0)
+                            if (tsMemberToPort.TypeParams.Count == 0)
                             {
                                 msg = $"There were no IntelliSense xml comments for typeparam {dTypeParam.Name} in Member DocId {dApiToUpdate.DocId}";
-                                ProblematicAPIs.AddIfNotExists(msg);
+                                _problematicAPIs.AddIfNotExists(msg);
                                 Log.Warning(msg);
                             }
-                            else if (tsMemberToPort.TypeParams.Count() != dApiToUpdate.TypeParams.Count())
+                            else if (tsMemberToPort.TypeParams.Count != dApiToUpdate.TypeParams.Count)
                             {
                                 msg = $"The total number of typeparams does not match between IntelliSense and Docs members {dApiToUpdate.DocId}";
-                                ProblematicAPIs.AddIfNotExists(msg);
+                                _problematicAPIs.AddIfNotExists(msg);
                                 Log.Warning(msg);
                             }
                             else
@@ -675,18 +633,19 @@ namespace ApiDocsSync.Libraries
                                 if (newTsTypeParam == null)
                                 {
                                     msg = $"The typeparam {dTypeParam.Name} was not found in IntelliSense xml for {dApiToUpdate.DocId}";
-                                    ProblematicAPIs.AddIfNotExists(msg);
+                                    _problematicAPIs.AddIfNotExists(msg);
                                     Log.Error(msg);
                                 }
                                 else
                                 {
                                     // Now attempt to document it
-                                    if (!newTsTypeParam.Value.IsDocsEmpty())
+                                    if (!newTsTypeParam.IsIntelliSenseEmpty())
                                     {
                                         // try to port IntelliSense xml comments
                                         dTypeParam.Value = newTsTypeParam.Value;
                                         name = newTsTypeParam.Name;
                                         value = newTsTypeParam.Value;
+                                        isDocumented = true;
                                     }
                                     // or try to find if it implements a documented interface
                                     else if (interfacedMember != null)
@@ -698,18 +657,20 @@ namespace ApiDocsSync.Libraries
                                             name = interfacedTypeParam.Name;
                                             value = interfacedTypeParam.Value;
                                             isEII = true;
+                                            isDocumented = true;
                                         }
                                     }
                                 }
                             }
                         }
                         // Attempt to port
-                        else if (!tsTypeParam.Value.IsDocsEmpty())
+                        else if (!tsTypeParam.IsIntelliSenseEmpty())
                         {
                             // try to port IntelliSense xml comments
                             dTypeParam.Value = tsTypeParam.Value;
                             name = tsTypeParam.Name;
                             value = tsTypeParam.Value;
+                            isDocumented = true;
                         }
                         // or try to find if it implements a documented interface
                         else if (interfacedMember != null)
@@ -721,14 +682,15 @@ namespace ApiDocsSync.Libraries
                                 name = interfacedTypeParam.Name;
                                 value = interfacedTypeParam.Value;
                                 isEII = true;
+                                isDocumented = true;
                             }
                         }
 
 
-                        if (!value.IsDocsEmpty())
+                        if (isDocumented)
                         {
                             PrintModifiedMember($"typeparam '{name}'", dApiToUpdate.FilePath, dApiToUpdate.DocId, isEII);
-                            TotalModifiedIndividualElements++;
+                            _totalModifiedIndividualElements++;
                         }
                     }
                 }
@@ -737,14 +699,14 @@ namespace ApiDocsSync.Libraries
             {
                 foreach (DocsTypeParam dTypeParam in dApiToUpdate.TypeParams)
                 {
-                    if (dTypeParam.Value.IsDocsEmpty())
+                    if (dTypeParam.IsDocsEmpty())
                     {
                         DocsTypeParam? interfacedTypeParam = interfacedMember.TypeParams.FirstOrDefault(x => x.Name == dTypeParam.Name);
-                        if (interfacedTypeParam != null && !interfacedTypeParam.Value.IsDocsEmpty())
+                        if (interfacedTypeParam != null && !interfacedTypeParam.IsDocsEmpty())
                         {
                             dTypeParam.Value = interfacedTypeParam.Value;
                             PrintModifiedMember($"typeparam '{dTypeParam.Name}'", dApiToUpdate.FilePath, dApiToUpdate.DocId, isEII);
-                            TotalModifiedIndividualElements++;
+                            _totalModifiedIndividualElements++;
                         }
                     }
                 }
@@ -754,18 +716,18 @@ namespace ApiDocsSync.Libraries
         // Tries to document the passed property.
         private void TryPortMissingPropertyForMember(DocsMember dMemberToUpdate, string? property, bool isEII = false)
         {
-            if (Config.PortMemberProperties && dMemberToUpdate.Value.IsDocsEmpty() && !property.IsDocsEmpty())
+            if (_config.PortMemberProperties && dMemberToUpdate.IsPropertyValueEmpty() && !property.IsIntelliSenseEmpty())
             {
                 dMemberToUpdate.Value = property!;
                 PrintModifiedMember("property", dMemberToUpdate.FilePath, dMemberToUpdate.DocId, isEII);
-                TotalModifiedIndividualElements++;
+                _totalModifiedIndividualElements++;
             }
         }
 
         // Tries to document the returns element of the specified API: it can be a Method Member, or a Delegate Type.
         private void TryPortMissingReturnsForMember(IDocsAPI dMemberToUpdate, string? returns, bool isEII = false)
         {
-            if (Config.PortMemberReturns)
+            if (_config.PortMemberReturns)
             {
                 // Bug: Sometimes a void return value shows up as not documented, skip those
                 if (dMemberToUpdate.ReturnType == "System.Void")
@@ -778,11 +740,11 @@ namespace ApiDocsSync.Libraries
                     // As a Docs bug, it's not worth logging
                     // ProblematicAPIs.AddIfNotExists($"Unexpected System.Void return value in Method=[{dMemberToUpdate.DocId}]");
                 }
-                else if (dMemberToUpdate.Returns.IsDocsEmpty() && !returns.IsDocsEmpty())
+                else if (dMemberToUpdate.IsReturnsEmpty() && !returns.IsIntelliSenseEmpty())
                 {
                     dMemberToUpdate.Returns = returns!;
                     PrintModifiedMember("returns", dMemberToUpdate.FilePath, dMemberToUpdate.DocId, isEII);
-                    TotalModifiedIndividualElements++;
+                    _totalModifiedIndividualElements++;
                 }
             }
         }
@@ -792,7 +754,7 @@ namespace ApiDocsSync.Libraries
         // All exceptions get ported, because there is no easy way to determine if an exception is already documented or not.
         private void TryPortMissingExceptionsForMember(DocsMember dMemberToUpdate, IntelliSenseXmlMember? tsMemberToPort)
         {
-            if (!Config.PortExceptionsExisting && !Config.PortExceptionsNew)
+            if (!_config.PortExceptionsExisting && !_config.PortExceptionsNew)
             {
                 return;
             }
@@ -806,21 +768,21 @@ namespace ApiDocsSync.Libraries
                     bool created = false;
 
                     // First time adding the cref
-                    if (dException == null && Config.PortExceptionsNew)
+                    if (dException == null && _config.PortExceptionsNew)
                     {
-                        AddedExceptions.AddIfNotExists($"Exception=[{tsException.Cref}] in Member=[{dMemberToUpdate.DocId}]");
+                        _addedExceptions.AddIfNotExists($"Exception=[{tsException.Cref}] in Member=[{dMemberToUpdate.DocId}]");
                         string text = XmlHelper.ReplaceExceptionPatterns(XmlHelper.GetNodesInPlainText(tsException.XEException));
                         dException = dMemberToUpdate.AddException(tsException.Cref, text);
                         created = true;
                     }
                     // If cref exists, check if the text has already been appended
-                    else if (dException != null && Config.PortExceptionsExisting)
+                    else if (dException != null && _config.PortExceptionsExisting)
                     {
                         XElement formattedException = tsException.XEException;
                         string value = XmlHelper.ReplaceExceptionPatterns(XmlHelper.GetNodesInPlainText(formattedException));
-                        if (!dException.WordCountCollidesAboveThreshold(value, Config.ExceptionCollisionThreshold))
+                        if (!dException.WordCountCollidesAboveThreshold(value, _config.ExceptionCollisionThreshold))
                         {
-                            AddedExceptions.AddIfNotExists($"Exception=[{tsException.Cref}] in Member=[{dMemberToUpdate.DocId}]");
+                            _addedExceptions.AddIfNotExists($"Exception=[{tsException.Cref}] in Member=[{dMemberToUpdate.DocId}]");
                             dException.AppendException(value);
                             created = true;
                         }
@@ -828,11 +790,11 @@ namespace ApiDocsSync.Libraries
 
                     if (dException != null)
                     {
-                        if (created || (!tsException.Value.IsDocsEmpty() && dException.Value.IsDocsEmpty()))
+                        if (created || (!tsException.IsIntelliSenseEmpty() && dException.IsDocsEmpty()))
                         {
                             PrintModifiedMember("exception", dException.ParentAPI.FilePath, dException.Cref, isEII: false);
 
-                            TotalModifiedIndividualElements++;
+                            _totalModifiedIndividualElements++;
                         }
                     }
                 }
@@ -844,7 +806,7 @@ namespace ApiDocsSync.Libraries
         {
             newTsParam = null;
 
-            if (Config.DisablePrompts)
+            if (_config.DisablePrompts)
             {
                 Log.Error($"Prompts disabled. Will not process the '{oldDParam.Name}' param.");
                 return false;
@@ -949,7 +911,7 @@ namespace ApiDocsSync.Libraries
         {
             newTsTypeParam = null;
 
-            if (Config.DisablePrompts)
+            if (_config.DisablePrompts)
             {
                 Log.Error($"Prompts disabled. Will not process the '{oldDTypeParam.Name}' typeparam.");
                 return false;
@@ -1057,7 +1019,7 @@ namespace ApiDocsSync.Libraries
         /// <param name="docId">The API unique identifier.</param>
         private void PrintModifiedMember(string elementName, string docsFilePath, string docId, bool isEII)
         {
-            if (Config.PrintSummaryDetails)
+            if (_config.PrintSummaryDetails)
             {
                 Log.Warning($"    File: {docsFilePath}");
                 Log.Warning($"        DocID: {docId}");
@@ -1075,7 +1037,7 @@ namespace ApiDocsSync.Libraries
         // This is only done if the user specified in the command arguments to print undocumented APIs.
         private void PrintUndocumentedAPIs()
         {
-            if (Config.PrintUndoc)
+            if (_config.PrintUndoc)
             {
                 Log.Line();
                 Log.Success("-----------------");
@@ -1083,24 +1045,6 @@ namespace ApiDocsSync.Libraries
                 Log.Success("-----------------");
 
                 Log.Line();
-
-                void TryPrintType(ref bool undocAPI, string typeDocId)
-                {
-                    if (!undocAPI)
-                    {
-                        Log.Info("    Type: {0}", typeDocId);
-                        undocAPI = true;
-                    }
-                };
-
-                void TryPrintMember(ref bool undocMember, string memberDocId)
-                {
-                    if (!undocMember)
-                    {
-                        Log.Info("            {0}", memberDocId);
-                        undocMember = true;
-                    }
-                };
 
                 int typeSummaries = 0;
                 int memberSummaries = 0;
@@ -1112,82 +1056,19 @@ namespace ApiDocsSync.Libraries
 
                 Log.Info("Undocumented APIs:");
 
-                foreach (DocsType docsType in DocsComments.Types.Values)
+                foreach (DocsType docsType in _docsComments.Types.Values)
                 {
                     bool undocAPI = false;
-                    if (docsType.Summary.IsDocsEmpty())
+                    if (docsType.IsSummaryEmpty())
                     {
                         TryPrintType(ref undocAPI, docsType.DocId);
                         Log.Error($"        Type Summary: {docsType.Summary}");
                         typeSummaries++;
                     }
-                }
 
-                foreach (DocsMember member in DocsComments.Members.Values)
-                {
-                    bool undocMember = false;
-
-                    if (member.Summary.IsDocsEmpty())
-                    {
-                        TryPrintMember(ref undocMember, member.DocId);
-
-                        Log.Error($"        Member Summary: {member.Summary}");
-                        memberSummaries++;
-                    }
-
-                    if (member.MemberType == "Property")
-                    {
-                        if (member.Value == Configuration.ToBeAdded)
-                        {
-                            TryPrintMember(ref undocMember, member.DocId);
-
-                            Log.Error($"        Property Value: {member.Value}");
-                            memberValues++;
-                        }
-                    }
-                    else if (member.MemberType == "Method")
-                    {
-                        if (member.Returns == Configuration.ToBeAdded)
-                        {
-                            TryPrintMember(ref undocMember, member.DocId);
-
-                            Log.Error($"        Method Returns: {member.Returns}");
-                            memberReturns++;
-                        }
-                    }
-
-                    foreach (DocsParam param in member.Params)
-                    {
-                        if (param.Value.IsDocsEmpty())
-                        {
-                            TryPrintMember(ref undocMember, member.DocId);
-
-                            Log.Error($"        Member Param: {param.Name}: {param.Value}");
-                            memberParams++;
-                        }
-                    }
-
-                    foreach (DocsTypeParam typeParam in member.TypeParams)
-                    {
-                        if (typeParam.Value.IsDocsEmpty())
-                        {
-                            TryPrintMember(ref undocMember, member.DocId);
-
-                            Log.Error($"        Member Type Param: {typeParam.Name}: {typeParam.Value}");
-                            memberTypeParams++;
-                        }
-                    }
-
-                    foreach (DocsException exception in member.Exceptions)
-                    {
-                        if (exception.Value.IsDocsEmpty())
-                        {
-                            TryPrintMember(ref undocMember, member.DocId);
-
-                            Log.Error($"        Member Exception: {exception.Cref}: {exception.Value}");
-                            exceptions++;
-                        }
-                    }
+                    PrintUndocumentedMembers(docsType,
+                        ref memberSummaries, ref memberValues, ref memberReturns,
+                        ref memberParams, ref memberTypeParams, ref exceptions);
                 }
 
                 Log.Info($" Undocumented type summaries: {typeSummaries}");
@@ -1199,6 +1080,96 @@ namespace ApiDocsSync.Libraries
                 Log.Info($" Undocumented exceptions: {exceptions}");
 
                 Log.Line();
+            }
+        }
+
+        private static void PrintUndocumentedMembers(DocsType docsType,
+            ref int memberSummaries, ref int memberValues, ref int memberReturns,
+            ref int memberParams, ref int memberTypeParams, ref int exceptions)
+        {
+            foreach (DocsMember member in docsType.Members.Values)
+            {
+                bool undocMember = false;
+
+                if (member.IsSummaryEmpty())
+                {
+                    TryPrintMember(ref undocMember, member.DocId);
+
+                    Log.Error($"        Member Summary: {member.Summary}");
+                    memberSummaries++;
+                }
+
+                if (member.MemberType == "Property")
+                {
+                    if (member.Value == DocsAPI.ToBeAdded)
+                    {
+                        TryPrintMember(ref undocMember, member.DocId);
+
+                        Log.Error($"        Property Value: {member.Value}");
+                        memberValues++;
+                    }
+                }
+                else if (member.MemberType == "Method")
+                {
+                    if (member.IsReturnsEmpty())
+                    {
+                        TryPrintMember(ref undocMember, member.DocId);
+
+                        Log.Error($"        Method Returns: {member.Returns}");
+                        memberReturns++;
+                    }
+                }
+
+                foreach (DocsParam param in member.Params)
+                {
+                    if (param.IsDocsEmpty())
+                    {
+                        TryPrintMember(ref undocMember, member.DocId);
+
+                        Log.Error($"        Member Param: {param.Name}: {param.Value}");
+                        memberParams++;
+                    }
+                }
+
+                foreach (DocsTypeParam typeParam in member.TypeParams)
+                {
+                    if (typeParam.IsDocsEmpty())
+                    {
+                        TryPrintMember(ref undocMember, member.DocId);
+
+                        Log.Error($"        Member Type Param: {typeParam.Name}: {typeParam.Value}");
+                        memberTypeParams++;
+                    }
+                }
+
+                foreach (DocsException exception in member.Exceptions)
+                {
+                    if (exception.IsDocsEmpty())
+                    {
+                        TryPrintMember(ref undocMember, member.DocId);
+
+                        Log.Error($"        Member Exception: {exception.Cref}: {exception.Value}");
+                        exceptions++;
+                    }
+                }
+            }
+        }
+
+        private static void TryPrintType(ref bool undocAPI, string typeDocId)
+        {
+            if (!undocAPI)
+            {
+                Log.Info("    Type: {0}", typeDocId);
+                undocAPI = true;
+            }
+        }
+
+        private static void TryPrintMember(ref bool undocMember, string memberDocId)
+        {
+            if (!undocMember)
+            {
+                Log.Info("            {0}", memberDocId);
+                undocMember = true;
             }
         }
 

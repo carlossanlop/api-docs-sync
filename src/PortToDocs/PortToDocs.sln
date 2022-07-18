@@ -5,7 +5,9 @@ VisualStudioVersion = 17.2.32220.68
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "PortToDocs", "src\app\PortToDocs.csproj", "{E92246CD-548D-4C08-BA43-594663E78100}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "libraries", "src\libraries\libraries.csproj", "{87BBF4FD-260C-4AC4-802B-7D2B29629C07}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "libraries", "src\IntelliSenseXml\IntelliSenseXml.csproj", "{87BBF4FD-260C-4AC4-802B-7D2B29629C07}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Docs", "..\Docs\Docs.csproj", "{097B8196-A13D-4214-A843-F57D0C88A8C7}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "tests", "tests\tests.csproj", "{81FEFEA4-8FF5-482E-A33D-D3F351D3F7B6}"
 EndProject
@@ -21,6 +23,10 @@ Global
 		{E92246CD-548D-4C08-BA43-594663E78100}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E92246CD-548D-4C08-BA43-594663E78100}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E92246CD-548D-4C08-BA43-594663E78100}.Release|Any CPU.Build.0 = Release|Any CPU
+		{097B8196-A13D-4214-A843-F57D0C88A8C7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{097B8196-A13D-4214-A843-F57D0C88A8C7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{097B8196-A13D-4214-A843-F57D0C88A8C7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{097B8196-A13D-4214-A843-F57D0C88A8C7}.Release|Any CPU.Build.0 = Release|Any CPU
 		{87BBF4FD-260C-4AC4-802B-7D2B29629C07}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{87BBF4FD-260C-4AC4-802B-7D2B29629C07}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{87BBF4FD-260C-4AC4-802B-7D2B29629C07}.Release|Any CPU.ActiveCfg = Release|Any CPU

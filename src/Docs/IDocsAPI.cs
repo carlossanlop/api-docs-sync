@@ -6,7 +6,8 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal interface IDocsAPI
+    // Describes the fields that are shared by a Docs Type and a Docs Member.
+    public interface IDocsAPI
     {
         public abstract APIKind Kind { get; }
         public abstract bool IsUndocumented { get; }
@@ -24,5 +25,8 @@ namespace ApiDocsSync.Libraries.Docs
         public abstract string Remarks { get; set; }
         public abstract DocsParam SaveParam(XElement xeCoreFXParam);
         public abstract DocsTypeParam AddTypeParam(string name, string value);
+        public abstract bool IsSummaryEmpty();
+        public abstract bool IsReturnsEmpty();
+        public abstract bool IsRemarksEmpty();
     }
 }

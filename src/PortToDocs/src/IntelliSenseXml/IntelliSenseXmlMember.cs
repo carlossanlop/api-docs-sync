@@ -203,6 +203,10 @@ namespace ApiDocsSync.Libraries.IntelliSenseXml
             Assembly = assembly.Trim();
         }
 
+        public bool IsIntelliSenseSummaryEmpty() => string.IsNullOrWhiteSpace(Summary);
+        public bool IsIntelliSenseReturnsEmpty() => string.IsNullOrWhiteSpace(Returns);
+        public bool IsIntelliSenseRemarksEmpty() => string.IsNullOrWhiteSpace(Remarks);
+
         public override string ToString()
         {
             return Name;

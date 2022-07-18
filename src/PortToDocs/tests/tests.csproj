@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\libraries\libraries.csproj" />
+    <ProjectReference Include="..\..\Docs\Docs.csproj" />
+    <ProjectReference Include="..\src\IntelliSenseXml\IntelliSenseXml.csproj" />
   </ItemGroup>
 
   <ItemGroup>

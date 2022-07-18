@@ -9,8 +9,12 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal abstract class DocsAPI : IDocsAPI
+    public abstract class DocsAPI : IDocsAPI
     {
+        // The default boilerplate string for what dotnet-api-docs
+        // considers an empty (undocumented) API element.
+        public static readonly string ToBeAdded = "To be added.";
+
         private List<DocsParam>? _params;
         private List<DocsParameter>? _parameters;
         private List<DocsTypeParameter>? _typeParameters;
@@ -27,8 +31,8 @@ namespace ApiDocsSync.Libraries.Docs
         public bool IsUndocumented =>
             Summary.IsDocsEmpty() ||
             Returns.IsDocsEmpty() ||
-            Params.Any(p => p.Value.IsDocsEmpty()) ||
-            TypeParams.Any(tp => tp.Value.IsDocsEmpty());
+            Params.Any(p => p.IsDocsEmpty()) ||
+            TypeParams.Any(tp => tp.IsDocsEmpty());
 
         public abstract bool Changed { get; set; }
         public string FilePath { get; set; } = string.Empty;
@@ -195,6 +199,10 @@ namespace ApiDocsSync.Libraries.Docs
 
         public abstract string Remarks { get; set; }
 
+        public bool IsSummaryEmpty() => Summary.IsDocsEmpty();
+        public bool IsReturnsEmpty() => Returns.IsDocsEmpty();
+        public bool IsRemarksEmpty() => Remarks.IsDocsEmpty();
+
         public List<DocsAssemblyInfo> AssemblyInfos
         {
             get
@@ -290,7 +298,7 @@ namespace ApiDocsSync.Libraries.Docs
             if (element == null && addIfMissing)
             {
                 element = new XElement(name);
-                XmlHelper.AddChildFormattedAsXml(Docs, element, Configuration.ToBeAdded);
+                XmlHelper.AddChildFormattedAsXml(Docs, element, DocsAPI.ToBeAdded);
             }
 
             return element != null;

@@ -1,6 +1,8 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using ApiDocsSync.Libraries.IntelliSenseXml;
+using System;
 using System.Text;
 using System.Xml.Linq;
 using Xunit;
@@ -399,7 +401,7 @@ A link to itself: <xref:MyNamespace.MyType.%23ctor(System.Object)>.
         [Fact]
         public void See_Cref_Generic()
         {
-            // References to other APIs in remarks, should be converted to xref in markdown. Make sure generic APIs get converted properly. 
+            // References to other APIs in remarks, should be converted to xref in markdown. Make sure generic APIs get converted properly.
 
             string originalIntellisense = @"<?xml version=""1.0""?>
 <doc>
@@ -878,11 +880,127 @@ Typeparamref `T`.
             TestWithStrings(originalIntellisense, originalDocs, expectedDocs);
         }
 
+        [Fact]
+        public void Property_Summary_Value()
+        {
+            // Properties have a summary and a value, unlike methods which do not have a value.
+            // Sometimes in intellisense xml, the property value is in the returns element, instead of the value element.
+            // Both cases need to be ported correctly to the docs value element.
+
+            string originalIntellisense = @"<?xml version=""1.0""?>
+<doc>
+  <assembly>
+    <name>MyAssembly</name>
+  </assembly>
+  <members>
+    <member name=""T:MyNamespace.MyType"">
+      <summary>The summary of MyType.</summary>
+    </member>
+    <member name=""P:MyNamespace.MyType.MyPropertyA"">
+      <summary>The summary of MyPropertyA.</summary>
+      <value>The value of MyPropertyA.</value>
+    </member>
+    <member name=""P:MyNamespace.MyType.MyPropertyB"">
+      <summary>The summary of MyPropertyB.</summary>
+      <returns>The value of MyPropertyB (in returns).</returns>
+    </member>
+  </members>
+</doc>";
+
+            string originalDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>To be added.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyPropertyA"">
+      <MemberSignature Language=""DocId"" Value=""P:MyNamespace.MyType.MyPropertyA"" />
+      <MemberType>Property</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Int32</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>To be added.</summary>
+        <value>To be added.</value>
+        <remarks>To be added.</remarks>
+      </Docs>
+    </Member>
+    <Member MemberName=""MyPropertyB"">
+      <MemberSignature Language=""DocId"" Value=""P:MyNamespace.MyType.MyPropertyB"" />
+      <MemberType>Property</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Int32</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>To be added.</summary>
+        <value>To be added.</value>
+        <remarks>To be added.</remarks>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            string expectedDocs = @"<Type Name=""MyType"" FullName=""MyNamespace.MyType"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyType"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>The summary of MyType.</summary>
+    <remarks>To be added.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyPropertyA"">
+      <MemberSignature Language=""DocId"" Value=""P:MyNamespace.MyType.MyPropertyA"" />
+      <MemberType>Property</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Int32</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>The summary of MyPropertyA.</summary>
+        <value>The value of MyPropertyA.</value>
+        <remarks>To be added.</remarks>
+      </Docs>
+    </Member>
+    <Member MemberName=""MyPropertyB"">
+      <MemberSignature Language=""DocId"" Value=""P:MyNamespace.MyType.MyPropertyB"" />
+      <MemberType>Property</MemberType>
+      <AssemblyInfo>
+        <AssemblyName>MyAssembly</AssemblyName>
+      </AssemblyInfo>
+      <ReturnValue>
+        <ReturnType>System.Int32</ReturnType>
+      </ReturnValue>
+      <Docs>
+        <summary>The summary of MyPropertyB.</summary>
+        <value>The value of MyPropertyB (in returns).</value>
+        <remarks>To be added.</remarks>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+            TestWithStrings(originalIntellisense, originalDocs, expectedDocs);
+        }
+
         private static void TestWithStrings(string originalIntellisense, string originalDocs, string expectedDocs)
         {
-            Configuration configuration = new Configuration();
-            configuration.IncludedAssemblies.Add(TestData.TestAssembly);
-            var porter = new ToDocsPorter(configuration);
+            Configuration c = new();
+            c.Docs.IncludedAssemblies.Add(TestData.TestAssembly);
+            var porter = new ToDocsPorter(c);
 
             XDocument xIntellisense = XDocument.Parse(originalIntellisense);
             porter.LoadIntellisenseXmlFile(xIntellisense, "IntelliSense.xml");

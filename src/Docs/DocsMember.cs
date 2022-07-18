@@ -8,7 +8,7 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal class DocsMember : DocsAPI
+    public class DocsMember : DocsAPI
     {
         private string? _memberName;
         private List<DocsMemberSignature>? _memberSignatures;
@@ -185,10 +185,12 @@ namespace ApiDocsSync.Libraries.Docs
             }
         }
 
-        public override string ToString()
-        {
-            return DocId;
-        }
+        public bool IsPropertyValueEmpty() =>
+            MemberType == "Property" ?
+            Value.IsDocsEmpty() :
+            throw new InvalidOperationException("This is a method, not a property");
+
+        public override string ToString() => DocId;
 
         public DocsException AddException(string cref, string value)
         {

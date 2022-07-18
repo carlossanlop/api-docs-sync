@@ -5,7 +5,7 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal class DocsAttribute
+    public class DocsAttribute
     {
         private readonly XElement XEAttribute;
 

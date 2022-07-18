@@ -43,5 +43,7 @@ namespace ApiDocsSync.Libraries.IntelliSenseXml
         {
             XEParam = xeParam;
         }
+
+        public bool IsIntelliSenseEmpty() => string.IsNullOrWhiteSpace(Value);
     }
 }

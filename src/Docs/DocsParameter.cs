@@ -5,7 +5,7 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal class DocsParameter
+    public class DocsParameter
     {
         private readonly XElement XEParameter;
         public string Name

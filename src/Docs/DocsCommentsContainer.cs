@@ -11,22 +11,22 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal class DocsCommentsContainer
+    public class DocsCommentsContainer
     {
-        private Configuration Config { get; set; }
+        private readonly DocsConfiguration _config;
 
         public readonly Dictionary<string, DocsType> Types = new();
-        public readonly Dictionary<string, DocsMember> Members = new();
+        public readonly Dictionary<string, DocsMember> AllMembers = new();
 
-        public DocsCommentsContainer(Configuration config) => Config = config;
+        public DocsCommentsContainer(DocsConfiguration config) => _config = config;
 
         public void SaveToDisk()
         {
-            if (!Config.Save)
+            if (!_config.Save)
             {
                 Log.Line();
                 Log.Error("[No files were saved]");
-                Log.Warning($"Did you forget to specify '-{nameof(Config.Save)} true'?");
+                Log.Warning($"Did you forget to specify '-{nameof(_config.Save)} true'?");
                 Log.Line();
 
                 return;
@@ -77,13 +77,13 @@ namespace ApiDocsSync.Libraries.Docs
             }
         }
 
-        internal IEnumerable<FileInfo> EnumerateFiles()
+        public IEnumerable<FileInfo> EnumerateFiles()
         {
             // Union avoids duplication
-            IEnumerable<string> includedAssembliesAndNamespaces = Config.IncludedAssemblies.Union(Config.IncludedNamespaces);
-            IEnumerable<string> excludedAssembliesAndNamespaces = Config.ExcludedAssemblies.Union(Config.ExcludedNamespaces);
+            IEnumerable<string> includedAssembliesAndNamespaces = _config.IncludedAssemblies.Union(_config.IncludedNamespaces);
+            IEnumerable<string> excludedAssembliesAndNamespaces = _config.ExcludedAssemblies.Union(_config.ExcludedNamespaces);
 
-            foreach (DirectoryInfo rootDir in Config.DirsDocsXml)
+            foreach (DirectoryInfo rootDir in _config.DirsDocsXml)
             {
                 // Try to find folders with the names of assemblies AND namespaces (if the user specified any)
                 foreach (string included in includedAssembliesAndNamespaces)
@@ -96,28 +96,24 @@ namespace ApiDocsSync.Libraries.Docs
 
                     foreach (DirectoryInfo subDir in rootDir.EnumerateDirectories($"{included}*", SearchOption.TopDirectoryOnly))
                     {
-                        if (HasAllowedDirName(subDir))
+                        foreach (FileInfo fileInfo in subDir.EnumerateFiles("*.xml", SearchOption.AllDirectories))
                         {
-                            foreach (FileInfo fileInfo in subDir.EnumerateFiles("*.xml", SearchOption.AllDirectories))
+                            if (HasAllowedFileName(fileInfo))
                             {
-                                if (HasAllowedFileName(fileInfo))
-                                {
-                                    // LoadFile will determine if the Type is allowed or not
-                                    yield return fileInfo;
-                                }
+                                // LoadFile will determine if the Type is allowed or not
+                                yield return fileInfo;
                             }
                         }
                     }
 
-                    if (!Config.SkipInterfaceImplementations)
+                    if (!_config.SkipInterfaceImplementations)
                     {
                         // Find interfaces only inside System.* folders.
                         // Including Microsoft.* folders reaches the max limit of files to include in a list, plus there are no essential interfaces there.
                         foreach (DirectoryInfo subDir in rootDir.EnumerateDirectories("System*", SearchOption.AllDirectories))
                         {
-                            if (!Configuration.ForbiddenBinSubdirectories.Contains(subDir.Name) &&
-                                // Exclude any folder that starts with the excluded assemblies OR excluded namespaces
-                                !excludedAssembliesAndNamespaces.Any(excluded => subDir.Name.StartsWith(excluded)) && !subDir.Name.EndsWith(".Tests"))
+                            // Exclude any folder that starts with the excluded assemblies OR excluded namespaces
+                            if (!excludedAssembliesAndNamespaces.Any(excluded => subDir.Name.StartsWith(excluded)) && !subDir.Name.EndsWith(".Tests"))
                             {
                                 // Ensure including interface files that start with I and then an uppercase letter, and prevent including files like 'Int'
                                 foreach (FileInfo fileInfo in subDir.EnumerateFiles("I*.xml", SearchOption.AllDirectories))
@@ -134,9 +130,9 @@ namespace ApiDocsSync.Libraries.Docs
             }
         }
 
-        internal void LoadDocsFile(XDocument xDoc, string filePath, Encoding encoding)
+        public void LoadDocsFile(XDocument xDoc, string filePath, Encoding encoding)
         {
-            if (IsXmlMalformed(xDoc, filePath))
+            if (IsDocsXmlFileMalformed(xDoc, filePath))
             {
                 return;
             }
@@ -147,15 +143,15 @@ namespace ApiDocsSync.Libraries.Docs
             bool addedAsInterface = false;
 
             bool containsForbiddenAssembly = docsType.AssemblyInfos.Any(assemblyInfo =>
-                                                Config.ExcludedAssemblies.Any(excluded => assemblyInfo.AssemblyName.StartsWith(excluded)) ||
-                                                Config.ExcludedNamespaces.Any(excluded => assemblyInfo.AssemblyName.StartsWith(excluded)));
+                                                _config.ExcludedAssemblies.Any(excluded => assemblyInfo.AssemblyName.StartsWith(excluded)) ||
+                                                _config.ExcludedNamespaces.Any(excluded => assemblyInfo.AssemblyName.StartsWith(excluded)));
 
             if (!containsForbiddenAssembly)
             {
                 // If it's an interface, always add it if the user wants to detect EIIs,
                 // even if it's in an assembly that was not included but was not explicitly excluded
                 addedAsInterface = false;
-                if (!Config.SkipInterfaceImplementations)
+                if (!_config.SkipInterfaceImplementations)
                 {
                     // Interface files start with I, and have an 2nd alphabetic character
                     addedAsInterface = docsType.Name.Length >= 2 && docsType.Name[0] == 'I' && docsType.Name[1] >= 'A' && docsType.Name[1] <= 'Z';
@@ -163,8 +159,8 @@ namespace ApiDocsSync.Libraries.Docs
                 }
 
                 bool containsAllowedAssembly = docsType.AssemblyInfos.Any(assemblyInfo =>
-                                                    Config.IncludedAssemblies.Any(included => assemblyInfo.AssemblyName.StartsWith(included)) ||
-                                                    Config.IncludedNamespaces.Any(included => assemblyInfo.AssemblyName.StartsWith(included)));
+                                                    _config.IncludedAssemblies.Any(included => assemblyInfo.AssemblyName.StartsWith(included)) ||
+                                                    _config.IncludedNamespaces.Any(included => assemblyInfo.AssemblyName.StartsWith(included)));
 
                 if (containsAllowedAssembly)
                 {
@@ -175,14 +171,14 @@ namespace ApiDocsSync.Libraries.Docs
                     if (!addedAsInterface)
                     {
                         // Either the user didn't specify namespace filtering (allow all namespaces) or specified particular ones to include/exclude
-                        if (!Config.IncludedNamespaces.Any() ||
-                                (Config.IncludedNamespaces.Any(included => docsType.Namespace.StartsWith(included)) &&
-                                 !Config.ExcludedNamespaces.Any(excluded => docsType.Namespace.StartsWith(excluded))))
+                        if (!_config.IncludedNamespaces.Any() ||
+                                (_config.IncludedNamespaces.Any(included => docsType.Namespace.StartsWith(included)) &&
+                                 !_config.ExcludedNamespaces.Any(excluded => docsType.Namespace.StartsWith(excluded))))
                         {
                             // Can add if the user didn't specify type filtering (allow all types), or specified particular ones to include/exclude
-                            add = !Config.IncludedTypes.Any() ||
-                                    (Config.IncludedTypes.Contains(docsType.Name) &&
-                                     !Config.ExcludedTypes.Contains(docsType.Name));
+                            add = !_config.IncludedTypes.Any() ||
+                                    (_config.IncludedTypes.Contains(docsType.Name) &&
+                                     !_config.ExcludedTypes.Contains(docsType.Name));
                         }
                     }
                 }
@@ -199,7 +195,8 @@ namespace ApiDocsSync.Libraries.Docs
                     {
                         DocsMember member = new(filePath, docsType, xeMember);
                         totalMembersAdded++;
-                        Members.TryAdd(member.DocId, member); // is it OK this encounters duplicates?
+                        docsType.Members.TryAdd(member.DocId, member); // is it OK this encounters duplicates?
+                        AllMembers.TryAdd(member.DocId, member);
                     }
                 }
 
@@ -219,15 +216,48 @@ namespace ApiDocsSync.Libraries.Docs
             }
         }
 
-        private static bool HasAllowedDirName(DirectoryInfo dirInfo) =>
-            !Configuration.ForbiddenBinSubdirectories.Contains(dirInfo.Name) && !dirInfo.Name.EndsWith(".Tests", StringComparison.InvariantCultureIgnoreCase);
+        public void CollectFiles()
+        {
+            if (_config.DirsDocsXml.Count == 0)
+            {
+                Log.ErrorAndExit($"No dotnet-api-docs xml folders were specified.");
+            }
+
+            Log.Info("Looking for Docs xml files...");
+            foreach (FileInfo fileInfo in EnumerateFiles())
+            {
+                XDocument? xDoc = null;
+                Encoding? encoding = null;
+                try
+                {
+                    var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+                    var utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+                    using (StreamReader sr = new(fileInfo.FullName, utf8NoBom, detectEncodingFromByteOrderMarks: true))
+                    {
+                        xDoc = XDocument.Load(sr);
+                        encoding = sr.CurrentEncoding;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Failed to load '{fileInfo.FullName}'. {ex}");
+                }
+
+                if (xDoc != null && encoding != null)
+                {
+                    LoadDocsFile(xDoc, fileInfo.FullName, encoding);
+                }
+            }
+            Log.Success("Finished looking for Docs xml files.");
+            Log.Line();
+        }
 
         private static bool HasAllowedFileName(FileInfo fileInfo) =>
             !fileInfo.Name.StartsWith("ns-") &&
                 fileInfo.Name != "index.xml" &&
                 fileInfo.Name != "_filter.xml";
 
-        private static bool IsXmlMalformed(XDocument? xDoc, string fileName)
+        private static bool IsDocsXmlFileMalformed(XDocument? xDoc, string fileName)
         {
             if (xDoc == null)
             {

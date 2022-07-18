@@ -5,7 +5,7 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal class DocsRelated
+    public class DocsRelated
     {
         private readonly XElement XERelatedArticle;
 

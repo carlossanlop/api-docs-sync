@@ -33,16 +33,46 @@ namespace ApiDocsSync.Libraries.IntelliSenseXml
 {
     internal class IntelliSenseXmlCommentsContainer
     {
-        private Configuration Config { get; set; }
+        private Configuration _config;
 
         // The IntelliSense xml files do not separate types from members, like ECMA xml files do - Everything is a member.
         public Dictionary<string, IntelliSenseXmlMember> Members = new();
 
-        public IntelliSenseXmlCommentsContainer(Configuration config) => Config = config;
+        public IntelliSenseXmlCommentsContainer(Configuration config) => _config = config;
+
+        public void CollectFiles()
+        {
+            if (_config.DirsIntelliSense.Count == 0)
+            {
+                Log.ErrorAndExit($"No IntelliSense & DLL folders were specified.");
+            }
+
+            Log.Info("Looking for IntelliSense xml files...");
+            foreach (FileInfo fileInfo in EnumerateFiles())
+            {
+                XDocument? xDoc = null;
+                try
+                {
+                    xDoc = XDocument.Load(fileInfo.FullName);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error($"Failed to load '{fileInfo.FullName}'. {ex}");
+                }
+
+                if (xDoc != null)
+                {
+                    LoadIntellisenseXmlFile(xDoc, fileInfo.FullName);
+                }
+            }
+            Log.Success("Finished looking for IntelliSense xml files.");
+            Log.Line();
+
+        }
 
         internal IEnumerable<FileInfo> EnumerateFiles()
         {
-            foreach (DirectoryInfo dirInfo in Config.DirsIntelliSense)
+            foreach (DirectoryInfo dirInfo in _config.DirsIntelliSense)
             {
                 // 1) Find all the xml files inside all the subdirectories inside the IntelliSense xml directory
                 foreach (DirectoryInfo subDir in dirInfo.EnumerateDirectories("*", SearchOption.TopDirectoryOnly))
@@ -80,13 +110,13 @@ namespace ApiDocsSync.Libraries.IntelliSenseXml
                 {
                     IntelliSenseXmlMember member = new(xeMember, assembly);
 
-                    if (Config.IncludedAssemblies.Any(included => member.Assembly.StartsWith(included, StringComparison.InvariantCultureIgnoreCase)) &&
-                        !Config.ExcludedAssemblies.Any(excluded => member.Assembly.StartsWith(excluded, StringComparison.InvariantCultureIgnoreCase)))
+                    if (_config.Docs.IncludedAssemblies.Any(included => member.Assembly.StartsWith(included, StringComparison.InvariantCultureIgnoreCase)) &&
+                        !_config.Docs.ExcludedAssemblies.Any(excluded => member.Assembly.StartsWith(excluded, StringComparison.InvariantCultureIgnoreCase)))
                     {
                         // No namespaces provided by the user means they want to port everything from that assembly
-                        if (!Config.IncludedNamespaces.Any() ||
-                                (Config.IncludedNamespaces.Any(included => member.Namespace.StartsWith(included, StringComparison.InvariantCultureIgnoreCase)) &&
-                                !Config.ExcludedNamespaces.Any(excluded => member.Namespace.StartsWith(excluded, StringComparison.InvariantCultureIgnoreCase))))
+                        if (!_config.Docs.IncludedNamespaces.Any() ||
+                                (_config.Docs.IncludedNamespaces.Any(included => member.Namespace.StartsWith(included, StringComparison.InvariantCultureIgnoreCase)) &&
+                                !_config.Docs.ExcludedNamespaces.Any(excluded => member.Namespace.StartsWith(excluded, StringComparison.InvariantCultureIgnoreCase))))
                         {
                             totalAdded++;
                             Members.TryAdd(member.Name, member); // is it OK this encounters duplicates?

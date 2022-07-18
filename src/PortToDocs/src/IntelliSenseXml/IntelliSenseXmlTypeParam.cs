@@ -39,5 +39,7 @@ namespace ApiDocsSync.Libraries.IntelliSenseXml
         {
             XETypeParam = xeTypeParam;
         }
+
+        public bool IsIntelliSenseEmpty() => string.IsNullOrWhiteSpace(Value);
     }
 }

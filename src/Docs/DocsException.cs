@@ -7,7 +7,7 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal class DocsException
+    public class DocsException
     {
         private readonly XElement XEException;
 
@@ -78,10 +78,9 @@ namespace ApiDocsSync.Libraries.Docs
             return collisionPercentage >= threshold;
         }
 
-        public override string ToString()
-        {
-            return $"{Cref} - {Value}";
-        }
+        public bool IsDocsEmpty() => Value.IsDocsEmpty();
+
+        public override string ToString() => $"{Cref} - {Value}";
 
         // Gets a dictionary with the count of each character found in the string.
         private Dictionary<string, int> GetHash(string value)

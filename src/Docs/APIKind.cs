@@ -3,7 +3,7 @@
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal enum APIKind
+    public enum APIKind
     {
         Type,
         Member

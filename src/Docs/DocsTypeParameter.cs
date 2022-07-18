@@ -10,7 +10,7 @@ namespace ApiDocsSync.Libraries.Docs
     /// <summary>
     /// Each one of these TypeParameter objects islocated inside the TypeParameters section inside the Member.
     /// </summary>
-    internal class DocsTypeParameter
+    public class DocsTypeParameter
     {
         private readonly XElement XETypeParameter;
         public string Name

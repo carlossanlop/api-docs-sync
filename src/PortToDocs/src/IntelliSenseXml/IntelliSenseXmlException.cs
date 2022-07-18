@@ -44,6 +44,8 @@ namespace ApiDocsSync.Libraries.IntelliSenseXml
             XEException = xeException;
         }
 
+        public bool IsIntelliSenseEmpty() => string.IsNullOrWhiteSpace(Value);
+
         public override string ToString()
         {
             return $"{Cref} - {Value}";

@@ -12,7 +12,7 @@ namespace ApiDocsSync.Libraries.Docs
     /// <summary>
     /// Represents the root xml element (unique) of a Docs xml file, called Type.
     /// </summary>
-    internal class DocsType : DocsAPI
+    public class DocsType : DocsAPI
     {
         private string? _typeName;
         private string? _name;
@@ -31,7 +31,10 @@ namespace ApiDocsSync.Libraries.Docs
             XDoc = xDoc;
             FileEncoding = encoding;
             AssemblyInfos.AddRange(XERoot.Elements("AssemblyInfo").Select(x => new DocsAssemblyInfo(x)));
+            Members = new Dictionary<string, DocsMember>();
         }
+
+        public Dictionary<string, DocsMember> Members { get; }
 
         public XDocument XDoc { get; set; }
 

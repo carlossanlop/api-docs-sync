@@ -1,19 +1,19 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using ApiDocsSync.Libraries.Docs;
 using System;
 using System.Collections.Generic;
 using System.IO;
 
-namespace ApiDocsSync.Libraries
+namespace ApiDocsSync.Libraries.IntelliSenseXml
 {
     public class Configuration
     {
-        private static readonly char Separator = ',';
+        private const char Separator = ',';
 
         private enum Mode
         {
-            BinLog,
             DisablePrompts,
             Docs,
             ExceptionCollisionThreshold,
@@ -44,10 +44,6 @@ namespace ApiDocsSync.Libraries
             SkipInterfaceRemarks
         }
 
-        // The default boilerplate string for what dotnet-api-docs
-        // considers an empty (undocumented) API element.
-        public static readonly string ToBeAdded = "To be added.";
-
         public static readonly string[] ForbiddenBinSubdirectories = new[] {
             "binplacePackages",
             "docs",
@@ -66,18 +62,11 @@ namespace ApiDocsSync.Libraries
             "winrt"
         };
 
-        public readonly string BinLogPath = "output.binlog";
-        public bool BinLogger { get; private set; } = false;
-        public List<DirectoryInfo> DirsIntelliSense { get; } = new List<DirectoryInfo>();
-        public List<DirectoryInfo> DirsDocsXml { get; } = new List<DirectoryInfo>();
         public bool DisablePrompts { get; set; } = true;
+        public List<DirectoryInfo> DirsIntelliSense { get; }
         public int ExceptionCollisionThreshold { get; set; } = 70;
-        public HashSet<string> ExcludedAssemblies { get; } = new HashSet<string>();
-        public HashSet<string> ExcludedNamespaces { get; } = new HashSet<string>();
-        public HashSet<string> ExcludedTypes { get; } = new HashSet<string>();
-        public HashSet<string> IncludedAssemblies { get; } = new HashSet<string>();
-        public HashSet<string> IncludedNamespaces { get; } = new HashSet<string>();
-        public HashSet<string> IncludedTypes { get; } = new HashSet<string>();
+        public bool PrintSummaryDetails { get; set; } = false;
+        public bool PrintUndoc { get; set; } = false;
         public bool PortExceptionsExisting { get; set; } = false;
         public bool PortExceptionsNew { get; set; } = true;
         public bool PortMemberParams { get; set; } = true;
@@ -96,11 +85,16 @@ namespace ApiDocsSync.Libraries
         /// TypeParams of a Type.
         /// </summary>
         public bool PortTypeTypeParams { get; set; } = true;
-        public bool PrintSummaryDetails { get; set; } = false;
-        public bool PrintUndoc { get; set; } = false;
-        public bool Save { get; set; } = false;
         public bool SkipInterfaceImplementations { get; set; } = false;
         public bool SkipInterfaceRemarks { get; set; } = true;
+
+        public DocsConfiguration Docs { get; }
+
+        public Configuration()
+        {
+            DirsIntelliSense = new List<DirectoryInfo>();
+            Docs = new DocsConfiguration();
+        }
 
         public static Configuration GetCLIArguments(string[] args)
         {
@@ -113,19 +107,12 @@ namespace ApiDocsSync.Libraries
                 Log.ErrorAndExit("No arguments passed to the executable.");
             }
 
-            Configuration config = new Configuration();
+            Configuration config = new();
 
             foreach (string arg in args!)
             {
                 switch (mode)
                 {
-                    case Mode.BinLog:
-                        {
-                            config.BinLogger = ParseOrExit(arg, "Create a binlog");
-                            mode = Mode.Initial;
-                            break;
-                        }
-
                     case Mode.DisablePrompts:
                         {
                             config.DisablePrompts = ParseOrExit(arg, "Disable prompts");
@@ -140,13 +127,13 @@ namespace ApiDocsSync.Libraries
                             Log.Cyan($"Specified Docs xml locations:");
                             foreach (string dirPath in splittedDirPaths)
                             {
-                                DirectoryInfo dirInfo = new DirectoryInfo(dirPath);
+                                DirectoryInfo dirInfo = new(dirPath);
                                 if (!dirInfo.Exists)
                                 {
                                     throw new Exception($"This Docs xml directory does not exist: {dirPath}");
                                 }
 
-                                config.DirsDocsXml.Add(dirInfo);
+                                config.Docs.DirsDocsXml.Add(dirInfo);
                                 Log.Info($"  -  {dirPath}");
                             }
 
@@ -182,7 +169,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string assembly in splittedArg)
                                 {
                                     Log.Cyan($" - {assembly}");
-                                    config.ExcludedAssemblies.Add(assembly);
+                                    config.Docs.ExcludedAssemblies.Add(assembly);
                                 }
                             }
                             else
@@ -204,7 +191,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string ns in splittedArg)
                                 {
                                     Log.Cyan($" - {ns}");
-                                    config.ExcludedNamespaces.Add(ns);
+                                    config.Docs.ExcludedNamespaces.Add(ns);
                                 }
                             }
                             else
@@ -226,7 +213,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string typeName in splittedArg)
                                 {
                                     Log.Cyan($" - {typeName}");
-                                    config.ExcludedTypes.Add(typeName);
+                                    config.Docs.ExcludedTypes.Add(typeName);
                                 }
                             }
                             else
@@ -248,7 +235,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string assembly in splittedArg)
                                 {
                                     Log.Cyan($" - {assembly}");
-                                    config.IncludedAssemblies.Add(assembly);
+                                    config.Docs.IncludedAssemblies.Add(assembly);
                                 }
                             }
                             else
@@ -270,7 +257,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string ns in splittedArg)
                                 {
                                     Log.Cyan($" - {ns}");
-                                    config.IncludedNamespaces.Add(ns);
+                                    config.Docs.IncludedNamespaces.Add(ns);
                                 }
                             }
                             else
@@ -292,7 +279,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string typeName in splittedArg)
                                 {
                                     Log.Cyan($" - {typeName}");
-                                    config.IncludedTypes.Add(typeName);
+                                    config.Docs.IncludedTypes.Add(typeName);
                                 }
                             }
                             else
@@ -308,10 +295,6 @@ namespace ApiDocsSync.Libraries
                         {
                             switch (arg.ToUpperInvariant())
                             {
-                                case "-BINLOG":
-                                    mode = Mode.BinLog;
-                                    break;
-
                                 case "-DOCS":
                                     mode = Mode.Docs;
                                     break;
@@ -440,7 +423,7 @@ namespace ApiDocsSync.Libraries
                             Log.Cyan($"Specified IntelliSense locations:");
                             foreach (string dirPath in splittedDirPaths)
                             {
-                                DirectoryInfo dirInfo = new DirectoryInfo(dirPath);
+                                DirectoryInfo dirInfo = new(dirPath);
                                 if (!dirInfo.Exists)
                                 {
                                     throw new Exception($"This IntelliSense directory does not exist: {dirPath}");
@@ -554,7 +537,7 @@ namespace ApiDocsSync.Libraries
 
                     case Mode.Save:
                         {
-                            config.Save = ParseOrExit(arg, "Save");
+                            config.Docs.Save = ParseOrExit(arg, "Save");
                             mode = Mode.Initial;
                             break;
                         }
@@ -586,28 +569,12 @@ namespace ApiDocsSync.Libraries
                 Log.ErrorAndExit("You missed an argument value.");
             }
 
-            if (config.IncludedAssemblies.Count == 0)
+            if (config.Docs.IncludedAssemblies.Count == 0)
             {
-                Log.ErrorAndExit($"You must specify at least one assembly with {nameof(IncludedAssemblies)}.");
+                Log.ErrorAndExit($"You must specify at least one assembly with {nameof(Mode.IncludedAssemblies)}.");
             }
 
             return config;
-        }
-
-        internal void VerifyIntellisenseXmlFiles()
-        {
-            if (DirsIntelliSense.Count == 0)
-            {
-                Log.ErrorAndExit($"You must specify at least one IntelliSense & DLL folder using '-{nameof(Mode.IntelliSense)}'.");
-            }
-        }
-
-        internal void VerifyDocsFiles()
-        {
-            if (DirsDocsXml.Count == 0)
-            {
-                Log.ErrorAndExit($"You must specify a path to the dotnet-api-docs xml folder using '-{nameof(Mode.Docs)}'.");
-            }
         }
 
         // Tries to parse the user argument string as boolean, and if it fails, exits the program.

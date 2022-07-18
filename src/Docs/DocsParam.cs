@@ -5,42 +5,41 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    /// <summary>
-    /// Each one of these typeparam objects live inside the Docs section inside the Member object.
-    /// </summary>
-    internal class DocsTypeParam
+    public class DocsParam
     {
-        private readonly XElement XEDocsTypeParam;
+        private readonly XElement XEDocsParam;
         public IDocsAPI ParentAPI
         {
             get; private set;
         }
-
         public string Name
         {
             get
             {
-                return XmlHelper.GetAttributeValue(XEDocsTypeParam, "name");
+                return XmlHelper.GetAttributeValue(XEDocsParam, "name");
             }
         }
-
         public string Value
         {
             get
             {
-                return XmlHelper.GetNodesInPlainText(XEDocsTypeParam);
+                return XmlHelper.GetNodesInPlainText(XEDocsParam);
             }
             set
             {
-                XmlHelper.SaveFormattedAsXml(XEDocsTypeParam, value);
+                XmlHelper.SaveFormattedAsXml(XEDocsParam, value);
                 ParentAPI.Changed = true;
             }
         }
 
-        public DocsTypeParam(IDocsAPI parentAPI, XElement xeDocsTypeParam)
+        public DocsParam(IDocsAPI parentAPI, XElement xeDocsParam)
         {
             ParentAPI = parentAPI;
-            XEDocsTypeParam = xeDocsTypeParam;
+            XEDocsParam = xeDocsParam;
         }
+
+        public bool IsDocsEmpty() => Value.IsDocsEmpty();
+
+        public override string ToString() => $"{Name} - {Value}";
     }
 }

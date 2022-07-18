@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using ApiDocsSync.Libraries.IntelliSenseXml;
 using System;
 using System.IO;
 using System.Linq;
@@ -107,10 +108,10 @@ namespace ApiDocsSync.Libraries.Tests
                        assemblyNames: new[] { TestData.TestAssembly, "System" });
         }
 
-        private static readonly string TestDataRootDir = Path.Join("..", "..", "..", "PortToDocs", "TestData");
-        private static readonly string IntellisenseDir = "intellisense";
-        private static readonly string XmlExpectedDir = "xml_expected";
-        private static readonly string XmlActualDir = "xml";
+        private static readonly string s_testDataRootDir = Path.Join("..", "..", "..", "PortToDocs", "TestData");
+        private const string IntellisenseDir = "intellisense";
+        private const string XmlExpectedDir = "xml_expected";
+        private const string XmlActualDir = "xml";
 
         private static void DirectoryRecursiveCopy(string sourceDir, string targetDir)
         {
@@ -145,7 +146,9 @@ namespace ApiDocsSync.Libraries.Tests
             bool portTypeRemarks = true,
             bool portMemberRemarks = true,
             bool portExceptionsExisting = false,
-            int exceptionCollisionThreshold = 70) => new()
+            int exceptionCollisionThreshold = 70)
+        {
+            Configuration config = new()
             {
                 DisablePrompts = disablePrompts,
                 ExceptionCollisionThreshold = exceptionCollisionThreshold,
@@ -153,10 +156,13 @@ namespace ApiDocsSync.Libraries.Tests
                 PortMemberRemarks = portMemberRemarks,
                 PortTypeRemarks = portTypeRemarks,
                 PrintUndoc = printUndoc,
-                Save = save,
                 SkipInterfaceImplementations = skipInterfaceImplementations,
                 SkipInterfaceRemarks = skipInterfaceRemarks
             };
+            config.Docs.Save = save;
+            return config;
+        }
+
 
         private static void PortToDocsWithFileSystem(
                 string testName,
@@ -172,21 +178,21 @@ namespace ApiDocsSync.Libraries.Tests
             string targetDir = Path.Join(testDirectory.FullPath, testName);
             Directory.CreateDirectory(targetDir);
 
-            string sourceDir = Path.Join(TestDataRootDir, testName);
+            string sourceDir = Path.Join(s_testDataRootDir, testName);
 
             DirectoryRecursiveCopy(sourceDir, targetDir);
 
             foreach (string assemblyName in assemblyNames)
             {
-                c.IncludedAssemblies.Add(assemblyName);
+                c.Docs.IncludedAssemblies.Add(assemblyName);
             }
 
             foreach (string namespaceName in namespaceNames)
             {
-                c.IncludedNamespaces.Add(namespaceName);
+                c.Docs.IncludedNamespaces.Add(namespaceName);
             }
 
-            c.DirsDocsXml.Add(new(Path.Join(targetDir, XmlActualDir)));
+            c.Docs.DirsDocsXml.Add(new(Path.Join(targetDir, XmlActualDir)));
             c.DirsIntelliSense.Add(new(Path.Join(targetDir, IntellisenseDir)));
 
             var porter = new ToDocsPorter(c);
@@ -203,7 +209,7 @@ namespace ApiDocsSync.Libraries.Tests
             FileInfo[] expectedXmlFiles = new DirectoryInfo(Path.Join(rootPath, XmlExpectedDir)).GetFiles("*.xml", o);
             FileInfo[] actualXmlFiles = new DirectoryInfo(Path.Join(rootPath, XmlActualDir)).GetFiles("*.xml", o);
 
-            foreach (var expectedFile in expectedXmlFiles)
+            foreach (FileInfo expectedFile in expectedXmlFiles)
             {
                 FileInfo actualFile = actualXmlFiles.FirstOrDefault(x =>
                     x.Name == expectedFile.Name &&

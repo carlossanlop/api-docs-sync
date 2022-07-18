@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace ApiDocsSync.Libraries
+namespace ApiDocsSync.Libraries.Docs
 {
     internal class XmlHelper
     {
@@ -122,7 +122,7 @@ namespace ApiDocsSync.Libraries
             { @"\<see langword\=""(?'seeLangwordContents'[a-zA-Z0-9_\-]+)""[ ]*\/\>",  @"`${seeLangwordContents}`" },
         };
 
-        public static string GetAttributeValue(XElement parent, string name)
+        internal static string GetAttributeValue(XElement parent, string name)
         {
             if (parent == null)
             {
@@ -139,7 +139,7 @@ namespace ApiDocsSync.Libraries
             return string.Empty;
         }
 
-        public static bool TryGetChildElement(XElement parent, string name, out XElement? child)
+        internal static bool TryGetChildElement(XElement parent, string name, out XElement? child)
         {
             child = null;
 
@@ -151,7 +151,7 @@ namespace ApiDocsSync.Libraries
             return child != null;
         }
 
-        public static string GetChildElementValue(XElement parent, string childName)
+        internal static string GetChildElementValue(XElement parent, string childName)
         {
             XElement? child = parent.Element(childName);
 
@@ -163,7 +163,7 @@ namespace ApiDocsSync.Libraries
             return string.Empty;
         }
 
-        public static string GetNodesInPlainText(XElement element)
+        internal static string GetNodesInPlainText(XElement element)
         {
             if (element == null)
             {
@@ -182,7 +182,7 @@ namespace ApiDocsSync.Libraries
             return string.Join("", element.Nodes()).Trim();
         }
 
-        public static void SaveFormattedAsMarkdown(XElement element, string newValue, bool isMember)
+        internal static void SaveFormattedAsMarkdown(XElement element, string newValue, bool isMember)
         {
             if (element == null)
             {
@@ -213,7 +213,7 @@ namespace ApiDocsSync.Libraries
             element.Add(xeFormat);
         }
 
-        public static void AddChildFormattedAsMarkdown(XElement parent, XElement child, string childValue, bool isMember)
+        internal static void AddChildFormattedAsMarkdown(XElement parent, XElement child, string childValue, bool isMember)
         {
             if (parent == null)
             {
@@ -229,7 +229,7 @@ namespace ApiDocsSync.Libraries
             parent.Add(child);
         }
 
-        public static void SaveFormattedAsXml(XElement element, string newValue, bool removeUndesiredEndlines = true)
+        internal static void SaveFormattedAsXml(XElement element, string newValue, bool removeUndesiredEndlines = true)
         {
             if (element == null)
             {
@@ -261,7 +261,7 @@ namespace ApiDocsSync.Libraries
             element.ReplaceAttributes(attributes);
         }
 
-        public static void AppendFormattedAsXml(XElement element, string valueToAppend, bool removeUndesiredEndlines)
+        internal static void AppendFormattedAsXml(XElement element, string valueToAppend, bool removeUndesiredEndlines)
         {
             if (element == null)
             {
@@ -271,7 +271,7 @@ namespace ApiDocsSync.Libraries
             SaveFormattedAsXml(element, GetNodesInPlainText(element) + valueToAppend, removeUndesiredEndlines);
         }
 
-        public static void AddChildFormattedAsXml(XElement parent, XElement child, string childValue)
+        internal static void AddChildFormattedAsXml(XElement parent, XElement child, string childValue)
         {
             if (parent == null)
             {
@@ -304,21 +304,6 @@ namespace ApiDocsSync.Libraries
                     updatedValue = updatedValue.Replace(kvp.Key, kvp.Value);
                 }
             }
-            return updatedValue;
-        }
-
-        internal static string ReplaceExceptionPatterns(string value)
-        {
-            string updatedValue = value;
-            foreach (KeyValuePair<string, string> kvp in _replaceableExceptionPatterns)
-            {
-                if (updatedValue.Contains(kvp.Key))
-                {
-                    updatedValue = updatedValue.Replace(kvp.Key, kvp.Value);
-                }
-            }
-
-            updatedValue = Regex.Replace(updatedValue, @"[\r\n\t ]+\-[ ]?or[ ]?\-[\r\n\t ]+", "\r\n\r\n-or-\r\n\r\n");
             return updatedValue;
         }
 

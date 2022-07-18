@@ -7,7 +7,7 @@ using System.Xml.Linq;
 
 namespace ApiDocsSync.Libraries.Docs
 {
-    internal class DocsAssemblyInfo
+    public class DocsAssemblyInfo
     {
         private readonly XElement XEAssemblyInfo;
         public string AssemblyName
