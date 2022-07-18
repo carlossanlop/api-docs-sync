@@ -1,17 +1,20 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using ApiDocsSync.Libraries.Docs;
+using ApiDocsSync.Libraries.RoslynTripleSlash;
 using Xunit;
 using Xunit.Abstractions;
 
 namespace ApiDocsSync.Libraries.Tests
 {
-    public class PortToTripleSlashTests : BasePortTests
+    public class FromFilesTests : BasePortTests
     {
-        public PortToTripleSlashTests(ITestOutputHelper output) : base(output)
+        public FromFilesTests(ITestOutputHelper output) : base(output)
         {
         }
 
@@ -36,7 +39,7 @@ namespace ApiDocsSync.Libraries.Tests
         {
             using TestDirectory tempDir = new();
 
-            PortToTripleSlashTestData testData = new(
+            TestData testData = new(
                 tempDir,
                 testDataDir,
                 assemblyName,
@@ -49,14 +52,14 @@ namespace ApiDocsSync.Libraries.Tests
                 BinLogPath = testData.BinLogPath,
             };
 
-            c.IncludedAssemblies.Add(assemblyName);
+            c.Docs.IncludedAssemblies.Add(assemblyName);
 
             if (!string.IsNullOrEmpty(namespaceName))
             {
-                c.IncludedNamespaces.Add(namespaceName);
+                c.Docs.IncludedNamespaces.Add(namespaceName);
             }
 
-            c.DirsDocsXml.Add(testData.DocsDir);
+            c.Docs.DirsDocsXml.Add(testData.DocsDir);
 
             CancellationTokenSource cts = new();
 
@@ -66,14 +69,35 @@ namespace ApiDocsSync.Libraries.Tests
             await c.Loader.LoadMainProjectAsync(c.CsProj, c.IsMono, cts.Token);
 
             ToTripleSlashPorter porter = new(c);
-            porter.CollectFiles();
-            await porter.MatchSymbolsAsync(throwOnSymbolsNotFound: true, cts.Token);
-            await porter.PortAsync(throwOnSymbolsNotFound: true, cts.Token);
+
+            Log.Info("Iterating the docs xml files...");
+            foreach (FileInfo fileInfo in porter.EnumerateDocsXmlFiles())
+            {
+                Log.Info($"Attempting to load xml file '{fileInfo.FullName}'...");
+                DocsType? docsType = porter.LoadDocsTypeForFile(fileInfo);
+                if (docsType == null)
+                {
+                    Log.Error($"Malformed file.");
+                    continue;
+                }
+
+                Log.Success($"File loaded successfully.");
+                Log.Info($"Looking for symbol locations for {docsType.TypeName}...");
+                List<ResolvedLocation>? symbolLocations = await porter.CollectSymbolLocationsAsync(docsType.TypeName, cts.Token).ConfigureAwait(false);
+                if (symbolLocations == null)
+                {
+                    Log.Error("No symbols found.");
+                    continue;
+                }
+                Log.Info($"Finished looking for symbol locations for {docsType.TypeName}. Now attempting to port...");
+                ResolvedDocsType rdt = new(docsType, symbolLocations);
+                await porter.PortAsync(rdt, throwOnSymbolsNotFound: true, cts.Token).ConfigureAwait(false);
+            }
 
             Verify(testData);
         }
 
-        private static void Verify(PortToTripleSlashTestData testData)
+        private static void Verify(TestData testData)
         {
             string[] expectedLines = File.ReadAllLines(testData.ExpectedFilePath);
             string[] actualLines = File.ReadAllLines(testData.ActualFilePath);

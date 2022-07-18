@@ -6,19 +6,28 @@ using Xunit;
 
 namespace ApiDocsSync.Libraries.Tests
 {
-    internal class PortToTripleSlashTestData : TestData
+    internal class TestData
     {
+        internal const string TestAssembly = "MyAssembly";
+        internal const string TestNamespace = "MyNamespace";
+        internal const string TestType = "MyType";
+        internal const string DocsDirName = "Docs";
+
+        internal string ExpectedFilePath { get; set; }
+        internal string ActualFilePath { get; set; }
+        internal DirectoryInfo DocsDir { get; set; }
+
         private const string BinLogFileName = "output.binlog";
         private const string SourceOriginal = "SourceOriginal.cs";
         private const string SourceExpected = "SourceExpected.cs";
         private const string ProjectDirName = "Project";
-        private const string TestDataRootDirPath = @"../../../PortToTripleSlash/TestData";
+        private const string TestDataRootDirPath = @"../../../TestData";
 
         private DirectoryInfo ProjectDir { get; set; }
         internal string ProjectFilePath { get; set; }
         internal string BinLogPath { get; set; }
 
-        internal PortToTripleSlashTestData(
+        internal TestData(
             TestDirectory tempDir,
             string testDataDir,
             string assemblyName,

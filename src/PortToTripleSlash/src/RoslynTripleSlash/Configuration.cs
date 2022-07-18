@@ -2,10 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
+using ApiDocsSync.Libraries.Docs;
 
-namespace ApiDocsSync.Libraries
+namespace ApiDocsSync.Libraries.RoslynTripleSlash
 {
     public class Configuration
     {
@@ -54,16 +54,15 @@ namespace ApiDocsSync.Libraries
 
         public string? BinLogPath { get; set; }
         public string CsProj { get; set; } = string.Empty;
-        public List<DirectoryInfo> DirsDocsXml { get; } = new List<DirectoryInfo>();
-        public HashSet<string> ExcludedAssemblies { get; } = new HashSet<string>();
-        public HashSet<string> ExcludedNamespaces { get; } = new HashSet<string>();
-        public HashSet<string> ExcludedTypes { get; } = new HashSet<string>();
-        public HashSet<string> IncludedAssemblies { get; } = new HashSet<string>();
-        public HashSet<string> IncludedNamespaces { get; } = new HashSet<string>();
-        public HashSet<string> IncludedTypes { get; } = new HashSet<string>();
+        public DocsConfiguration Docs { get; }
         public bool IsMono { get; set; }
         public bool SkipInterfaceImplementations { get; set; } = false;
         public bool SkipInterfaceRemarks { get; set; } = true;
+
+        public Configuration()
+        {
+            Docs = new DocsConfiguration();
+        }
 
         public static Configuration GetCLIArguments(string[] args)
         {
@@ -133,7 +132,7 @@ namespace ApiDocsSync.Libraries
                                     throw new Exception($"This Docs xml directory does not exist: {dirPath}");
                                 }
 
-                                config.DirsDocsXml.Add(dirInfo);
+                                config.Docs.DirsDocsXml.Add(dirInfo);
                                 Log.Info($"  -  {dirPath}");
                             }
 
@@ -151,7 +150,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string assembly in splittedArg)
                                 {
                                     Log.Cyan($" - {assembly}");
-                                    config.ExcludedAssemblies.Add(assembly);
+                                    config.Docs.ExcludedAssemblies.Add(assembly);
                                 }
                             }
                             else
@@ -173,7 +172,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string ns in splittedArg)
                                 {
                                     Log.Cyan($" - {ns}");
-                                    config.ExcludedNamespaces.Add(ns);
+                                    config.Docs.ExcludedNamespaces.Add(ns);
                                 }
                             }
                             else
@@ -195,7 +194,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string typeName in splittedArg)
                                 {
                                     Log.Cyan($" - {typeName}");
-                                    config.ExcludedTypes.Add(typeName);
+                                    config.Docs.ExcludedTypes.Add(typeName);
                                 }
                             }
                             else
@@ -217,7 +216,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string assembly in splittedArg)
                                 {
                                     Log.Cyan($" - {assembly}");
-                                    config.IncludedAssemblies.Add(assembly);
+                                    config.Docs.IncludedAssemblies.Add(assembly);
                                 }
                             }
                             else
@@ -239,7 +238,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string ns in splittedArg)
                                 {
                                     Log.Cyan($" - {ns}");
-                                    config.IncludedNamespaces.Add(ns);
+                                    config.Docs.IncludedNamespaces.Add(ns);
                                 }
                             }
                             else
@@ -261,7 +260,7 @@ namespace ApiDocsSync.Libraries
                                 foreach (string typeName in splittedArg)
                                 {
                                     Log.Cyan($" - {typeName}");
-                                    config.IncludedTypes.Add(typeName);
+                                    config.Docs.IncludedTypes.Add(typeName);
                                 }
                             }
                             else
@@ -371,7 +370,7 @@ namespace ApiDocsSync.Libraries
                 Log.ErrorAndExit("You missed an argument value.");
             }
 
-            if (config.DirsDocsXml == null)
+            if (config.Docs.DirsDocsXml == null)
             {
                 Log.ErrorAndExit($"You must specify a path to the dotnet-api-docs xml folder using '-{nameof(Mode.Docs)}'.");
             }
@@ -386,9 +385,9 @@ namespace ApiDocsSync.Libraries
                 Log.ErrorAndExit($"The file specified with '-{nameof(Mode.CsProj)}' does not exist: {config.CsProj}");
             }
 
-            if (config.IncludedAssemblies.Count == 0)
+            if (config.Docs.IncludedAssemblies.Count == 0)
             {
-                Log.ErrorAndExit($"You must specify at least one assembly with {nameof(IncludedAssemblies)}.");
+                Log.ErrorAndExit($"You must specify at least one assembly with {nameof(Mode.IncludedAssemblies)}.");
             }
 
             return config;

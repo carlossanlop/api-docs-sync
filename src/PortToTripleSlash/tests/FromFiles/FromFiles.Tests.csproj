@@ -6,12 +6,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="PortToTripleSlash\TestData\Generics\SourceExpected.cs" />
-    <Compile Remove="PortToTripleSlash\TestData\Generics\SourceOriginal.cs" />
-    <Compile Remove="PortToTripleSlash\TestData\Basic\SourceExpected.cs" />
-    <Compile Remove="PortToTripleSlash\TestData\Basic\SourceOriginal.cs" />
-    <None Include="PortToTripleSlash\TestData\Generics\MyAssembly.csproj" />
-    <None Include="PortToTripleSlash\TestData\Basic\MyAssembly.csproj" />
+    <Compile Include="../BasePortTests.cs"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="TestData\Generics\SourceExpected.cs" />
+    <Compile Remove="TestData\Generics\SourceOriginal.cs" />
+    <Compile Remove="TestData\Basic\SourceExpected.cs" />
+    <Compile Remove="TestData\Basic\SourceOriginal.cs" />
+    <None Include="TestData\Generics\MyAssembly.csproj" />
+    <None Include="TestData\Basic\MyAssembly.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\libraries\libraries.csproj" />
+    <ProjectReference Include="..\..\src\RoslynTripleSlash\RoslynTripleSlash.csproj" />
   </ItemGroup>
 
 </Project>

@@ -38,15 +38,15 @@ namespace ApiDocsSync.Libraries.IntelliSenseXml
 
         public void CollectFiles()
         {
-            _intelliSenseXmlComments.CollectFiles();
-            _docsComments.CollectFiles();
+            _intelliSenseXmlComments.CollectIntelliSenseComments();
+            _docsComments.CollectDocsComments();
         }
 
         public void LoadIntellisenseXmlFile(XDocument xDoc, string filePath) =>
             _intelliSenseXmlComments.LoadIntellisenseXmlFile(xDoc, filePath);
 
         public void LoadDocsFile(XDocument xDoc, string filePath, Encoding encoding) =>
-            _docsComments.LoadDocsFile(xDoc, filePath, encoding);
+            _docsComments.LoadDocsTypeForXDoc(xDoc, filePath, encoding);
 
         public void Start()
         {

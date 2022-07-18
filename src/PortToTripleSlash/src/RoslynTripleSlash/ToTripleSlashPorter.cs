@@ -9,15 +9,13 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using ApiDocsSync.Libraries.Docs;
-using ApiDocsSync.Libraries.RoslynTripleSlash;
 using Microsoft.CodeAnalysis;
 
-namespace ApiDocsSync.Libraries
+namespace ApiDocsSync.Libraries.RoslynTripleSlash
 {
     public class ToTripleSlashPorter
     {
@@ -31,7 +29,7 @@ namespace ApiDocsSync.Libraries
         public ToTripleSlashPorter(Configuration config)
         {
             _config = config;
-            _docsComments = new DocsCommentsContainer(config);
+            _docsComments = new DocsCommentsContainer(config.Docs);
         }
 
         /// <summary>
@@ -42,109 +40,79 @@ namespace ApiDocsSync.Libraries
         /// </summary>
         public async Task StartAsync(CancellationToken cancellationToken)
         {
-            CollectFiles();
-
-            if (!_docsComments.Types.Any())
+            Log.Info("Iterating the docs xml files...");
+            foreach (FileInfo fileInfo in EnumerateDocsXmlFiles())
             {
-                Log.Error("No Docs Type APIs found. Is the Docs xml path correct? Exiting.");
-                Environment.Exit(0);
-            }
-
-            foreach (DocsType docsType in _docsComments.Types.Values)
-            {
-                Log.Info($"Looking for symbol locations for {docsType.TypeName}...");
-                docsType.SymbolLocations = await CollectSymbolLocationsAsync(docsType.TypeName, cancellationToken).ConfigureAwait(false);
-                Log.Info($"Finished looking for symbol locations for {docsType.TypeName}. Now attempting to port...");
-                await PortAsync(docsType, throwOnSymbolsNotFound: false, cancellationToken).ConfigureAwait(false);
-            }
-        }
-
-        /// <summary>
-        ///  Collects the docs xml files.
-        /// </summary>
-        public void CollectFiles()
-        {
-            _docsComments.CollectFiles();
-            if (!_docsComments.Types.Any())
-            {
-                throw new Exception("No docs type APIs found.");
-            }
-        }
-
-        /// <summary>
-        /// Iterates through all the xml files and collects symbols from the found projects for each one.
-        /// </summary>
-        public async Task MatchSymbolsAsync(bool throwOnSymbolsNotFound, CancellationToken cancellationToken)
-        {
-            Debug.Assert(_docsComments.Types.Any());
-            Log.Info("Looking for symbol locations for all Docs types...");
-            foreach (DocsType docsType in _docsComments.Types.Values)
-            {
-                docsType.SymbolLocations = await CollectSymbolLocationsAsync(docsType.TypeName, cancellationToken).ConfigureAwait(false);
-                if (throwOnSymbolsNotFound)
+                Log.Info($"Attempting to load xml file '{fileInfo.FullName}'...");
+                DocsType? docsType = LoadDocsTypeForFile(fileInfo);
+                if (docsType == null)
                 {
-                    VerifySymbolLocations(docsType);
+                    Log.Error($"Malformed file.");
+                    continue;
                 }
+
+                Log.Success($"File loaded successfully.");
+                Log.Info($"Looking for symbol locations for {docsType.TypeName}...");
+                List<ResolvedLocation>? symbolLocations = await CollectSymbolLocationsAsync(docsType.TypeName, cancellationToken).ConfigureAwait(false);
+                if (symbolLocations == null)
+                {
+                    Log.Error("No symbols found.");
+                    continue;
+                }
+                Log.Info($"Finished looking for symbol locations for {docsType.TypeName}. Now attempting to port...");
+                ResolvedDocsType rdt = new(docsType, symbolLocations);
+                await PortAsync(rdt, throwOnSymbolsNotFound: false, cancellationToken).ConfigureAwait(false);
             }
         }
 
-        /// <summary>
-        /// Iterates through all the found xml files and ports their documentation to the locations of all its found symbols.
-        /// </summary>
-        public async Task PortAsync(bool throwOnSymbolsNotFound, CancellationToken cancellationToken)
-        {
-            Debug.Assert(_docsComments.Types.Any());
-            Log.Info($"Now attempting to port all found symbols...");
-            foreach (DocsType docsType in _docsComments.Types.Values)
-            {
-                await PortAsync(docsType, throwOnSymbolsNotFound, cancellationToken).ConfigureAwait(false);
-            }
-        }
+        public IEnumerable<FileInfo> EnumerateDocsXmlFiles() => _docsComments.EnumerateFiles();
+
+        public DocsType? LoadDocsTypeForFile(FileInfo fileInfo) => _docsComments.LoadDocsTypeForFile(fileInfo);
 
         /// <summary>
         /// Ports the documentation of the specified xml file to the locations of all its found symbols.
         /// </summary>
-        internal async Task PortAsync(DocsType docsType, bool throwOnSymbolsNotFound, CancellationToken cancellationToken)
+        public async Task PortAsync(ResolvedDocsType rdt, bool throwOnSymbolsNotFound, CancellationToken cancellationToken)
         {
             if (throwOnSymbolsNotFound)
             {
-                VerifySymbolLocations(docsType);
+                VerifySymbolLocations(rdt);
             }
-            else if (docsType.SymbolLocations == null || !docsType.SymbolLocations.Any())
+            else if (rdt.SymbolLocations == null || !rdt.SymbolLocations.Any())
             {
-                Log.Warning($"No symbols found for '{docsType.TypeName}'. Skipping.");
+                Log.Warning($"No symbols found for '{rdt.DocsType.TypeName}'. Skipping.");
                 return;
             }
 
-            Log.Cyan($"Porting comments for '{docsType.TypeName}'. Locations: {docsType.SymbolLocations!.Count}...");
-            foreach (ResolvedLocation resolvedLocation in docsType.SymbolLocations)
+            Log.Cyan($"Porting comments for '{rdt.DocsType.TypeName}'. Locations: {rdt.SymbolLocations!.Count}...");
+            foreach (ResolvedLocation resolvedLocation in rdt.SymbolLocations)
             {
                 Log.Info($"Porting docs for tree '{resolvedLocation.Tree.FilePath}'...");
                 TripleSlashSyntaxRewriter rewriter = new(_docsComments, resolvedLocation.Model);
                 SyntaxNode? newRoot = rewriter.Visit(resolvedLocation.Tree.GetRoot(cancellationToken));
                 if (newRoot == null)
                 {
-                    throw new Exception($"Returned null root node for {docsType.TypeName} in {resolvedLocation.Tree.FilePath}");
+                    throw new Exception($"Returned null root node for {rdt.DocsType.TypeName} in {resolvedLocation.Tree.FilePath}");
                 }
 
                 await File.WriteAllTextAsync(resolvedLocation.Tree.FilePath, newRoot.ToFullString(), cancellationToken).ConfigureAwait(false);
-                Log.Success($"Docs ported to '{docsType.TypeName}'.");
+                Log.Success($"Docs ported to '{rdt.DocsType.TypeName}'.");
             }
         }
 
-        private static void VerifySymbolLocations(DocsType docsType)
+        private static void VerifySymbolLocations(ResolvedDocsType rdt)
         {
-            if (docsType.SymbolLocations == null)
+            if (rdt.SymbolLocations == null)
             {
-                throw new Exception($"Symbol locations null for '{docsType.TypeName}'.");
+                throw new Exception($"Symbol locations null for '{rdt.DocsType.TypeName}'.");
             }
-            else if (!docsType.SymbolLocations.Any())
+            else if (!rdt.SymbolLocations.Any())
             {
-                throw new Exception($"No symbols found for '{docsType.TypeName}'");
+                throw new Exception($"No symbols found for '{rdt.DocsType.TypeName}'");
             }
         }
 
-        private async Task<List<ResolvedLocation>?> CollectSymbolLocationsAsync(string docsTypeName, CancellationToken cancellationToken)
+        public async Task<List<ResolvedLocation>?> CollectSymbolLocationsAsync(string docsTypeName, CancellationToken cancellationToken)
         {
             Debug.Assert(_config.Loader != null);
             ResolvedProject? mainProject = _config.Loader.MainProject;
@@ -226,12 +194,12 @@ namespace ApiDocsSync.Libraries
                 // The only exception is System.Private.CoreLib, which we should always explore
                 if (projectNamespaceToUpper != _systemPrivateCoreLib)
                 {
-                    if (_config.ExcludedNamespaces.Any(x => x.StartsWith(projectNamespace)))
+                    if (_config.Docs.ExcludedNamespaces.Any(x => x.StartsWith(projectNamespace)))
                     {
                         Log.Info($"Skipping project '{projectPath}' which was added to -ExcludedNamespaces.");
                         continue;
                     }
-                    else if (!_config.IncludedNamespaces.Any(x => x.StartsWith(projectNamespace)))
+                    else if (!_config.Docs.IncludedNamespaces.Any(x => x.StartsWith(projectNamespace)))
                     {
                         Log.Info($"Skipping project '{projectPath}' which was not added to -IncludedNamespaces.");
                         continue;

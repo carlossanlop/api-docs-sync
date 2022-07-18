@@ -40,7 +40,7 @@ namespace ApiDocsSync.Libraries.IntelliSenseXml
 
         public IntelliSenseXmlCommentsContainer(Configuration config) => _config = config;
 
-        public void CollectFiles()
+        public void CollectIntelliSenseComments()
         {
             if (_config.DirsIntelliSense.Count == 0)
             {

@@ -3,7 +3,7 @@
 
 using System.Threading;
 using System.Threading.Tasks;
-using ApiDocsSync.Libraries;
+using ApiDocsSync.Libraries.RoslynTripleSlash;
 
 namespace ApiDocsSync
 {

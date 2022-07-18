@@ -130,11 +130,54 @@ namespace ApiDocsSync.Libraries.Docs
             }
         }
 
-        public void LoadDocsFile(XDocument xDoc, string filePath, Encoding encoding)
+        public void CollectDocsComments()
+        {
+            if (_config.DirsDocsXml.Count == 0)
+            {
+                Log.ErrorAndExit($"No dotnet-api-docs xml folders were specified.");
+            }
+
+            Log.Info("Looking for Docs xml files...");
+            foreach (FileInfo fileInfo in EnumerateFiles())
+            {
+                LoadDocsTypeForFile(fileInfo);
+            }
+            Log.Success("Finished looking for Docs xml files.");
+            Log.Line();
+        }
+
+        public DocsType? LoadDocsTypeForFile(FileInfo fileInfo)
+        {
+            XDocument? xDoc = null;
+            Encoding? encoding = null;
+            try
+            {
+                var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+                var utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+                using (StreamReader sr = new(fileInfo.FullName, utf8NoBom, detectEncodingFromByteOrderMarks: true))
+                {
+                    xDoc = XDocument.Load(sr);
+                    encoding = sr.CurrentEncoding;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Failed to load '{fileInfo.FullName}'. {ex}");
+            }
+
+            if (xDoc != null && encoding != null)
+            {
+                return LoadDocsTypeForXDoc(xDoc, fileInfo.FullName, encoding);
+            }
+
+            return null;
+        }
+
+        public DocsType? LoadDocsTypeForXDoc(XDocument xDoc, string filePath, Encoding encoding)
         {
             if (IsDocsXmlFileMalformed(xDoc, filePath))
             {
-                return;
+                return null;
             }
 
             DocsType docsType = new(filePath, xDoc, xDoc.Root!, encoding);
@@ -214,42 +257,8 @@ namespace ApiDocsSync.Libraries.Docs
                     Log.Success(message);
                 }
             }
-        }
 
-        public void CollectFiles()
-        {
-            if (_config.DirsDocsXml.Count == 0)
-            {
-                Log.ErrorAndExit($"No dotnet-api-docs xml folders were specified.");
-            }
-
-            Log.Info("Looking for Docs xml files...");
-            foreach (FileInfo fileInfo in EnumerateFiles())
-            {
-                XDocument? xDoc = null;
-                Encoding? encoding = null;
-                try
-                {
-                    var utf8NoBom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-                    var utf8Bom = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
-                    using (StreamReader sr = new(fileInfo.FullName, utf8NoBom, detectEncodingFromByteOrderMarks: true))
-                    {
-                        xDoc = XDocument.Load(sr);
-                        encoding = sr.CurrentEncoding;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log.Error($"Failed to load '{fileInfo.FullName}'. {ex}");
-                }
-
-                if (xDoc != null && encoding != null)
-                {
-                    LoadDocsFile(xDoc, fileInfo.FullName, encoding);
-                }
-            }
-            Log.Success("Finished looking for Docs xml files.");
-            Log.Line();
+            return docsType;
         }
 
         private static bool HasAllowedFileName(FileInfo fileInfo) =>

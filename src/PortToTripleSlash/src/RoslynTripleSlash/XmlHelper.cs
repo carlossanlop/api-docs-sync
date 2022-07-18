@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using System.Xml;
 using System.Xml.Linq;
 
-namespace ApiDocsSync.Libraries
+namespace ApiDocsSync.Libraries.RoslynTripleSlash
 {
     internal class XmlHelper
     {

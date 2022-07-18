@@ -392,7 +392,7 @@ namespace ApiDocsSync.Libraries.RoslynTripleSlash
                 string? docId = symbol.GetDocumentationCommentId();
                 if (!string.IsNullOrWhiteSpace(docId))
                 {
-                    DocsComments.Members.TryGetValue(docId, out member);
+                    DocsComments.AllMembers.TryGetValue(docId, out member);
                 }
             }
 
