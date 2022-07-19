@@ -74,7 +74,7 @@ namespace ApiDocsSync.Libraries.Tests
             foreach (FileInfo fileInfo in porter.EnumerateDocsXmlFiles())
             {
                 Log.Info($"Attempting to load xml file '{fileInfo.FullName}'...");
-                DocsType? docsType = porter.LoadDocsTypeForFile(fileInfo);
+                DocsType docsType = porter.LoadDocsTypeForFile(fileInfo);
                 if (docsType == null)
                 {
                     Log.Error($"Malformed file.");
@@ -83,15 +83,14 @@ namespace ApiDocsSync.Libraries.Tests
 
                 Log.Success($"File loaded successfully.");
                 Log.Info($"Looking for symbol locations for {docsType.TypeName}...");
-                List<ResolvedLocation>? symbolLocations = await porter.CollectSymbolLocationsAsync(docsType.TypeName, cts.Token).ConfigureAwait(false);
+                List<ResolvedLocation> symbolLocations = await porter.CollectSymbolLocationsAsync(docsType.TypeName, cts.Token).ConfigureAwait(false);
                 if (symbolLocations == null)
                 {
                     Log.Error("No symbols found.");
                     continue;
                 }
                 Log.Info($"Finished looking for symbol locations for {docsType.TypeName}. Now attempting to port...");
-                ResolvedDocsType rdt = new(docsType, symbolLocations);
-                await porter.PortAsync(rdt, throwOnSymbolsNotFound: true, cts.Token).ConfigureAwait(false);
+                await porter.PortAsync(docsType.TypeName, symbolLocations, throwOnSymbolsNotFound: true, cts.Token).ConfigureAwait(false);
             }
 
             Verify(testData);

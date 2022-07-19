@@ -23,4 +23,9 @@
       <ProjectReference Include="..\..\src\RoslynTripleSlash\RoslynTripleSlash.csproj" />
     </ItemGroup>
 
+    <PropertyGroup>
+      <!-- In order tests against the same version of NuGet as the SDK. We have to set this to match. -->
+      <NuGetVersion>6.2.1.7</NuGetVersion>
+    </PropertyGroup>
+
   </Project>

@@ -9,9 +9,11 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using ApiDocsSync.Libraries.Docs;
 using Microsoft.CodeAnalysis;
 
@@ -61,7 +63,7 @@ namespace ApiDocsSync.Libraries.RoslynTripleSlash
                 }
                 Log.Info($"Finished looking for symbol locations for {docsType.TypeName}. Now attempting to port...");
                 ResolvedDocsType rdt = new(docsType, symbolLocations);
-                await PortAsync(rdt, throwOnSymbolsNotFound: false, cancellationToken).ConfigureAwait(false);
+                await PortAsync(rdt.DocsType.TypeName, rdt.SymbolLocations, throwOnSymbolsNotFound: false, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -69,46 +71,44 @@ namespace ApiDocsSync.Libraries.RoslynTripleSlash
 
         public DocsType? LoadDocsTypeForFile(FileInfo fileInfo) => _docsComments.LoadDocsTypeForFile(fileInfo);
 
+        public void LoadDocsFile(XDocument xDoc, string filePath, Encoding encoding) =>
+            _docsComments.LoadDocsTypeForXDoc(xDoc, filePath, encoding);
+
         /// <summary>
         /// Ports the documentation of the specified xml file to the locations of all its found symbols.
         /// </summary>
-        public async Task PortAsync(ResolvedDocsType rdt, bool throwOnSymbolsNotFound, CancellationToken cancellationToken)
+        public async Task PortAsync(string typeName, List<ResolvedLocation>? symbolLocations, bool throwOnSymbolsNotFound, CancellationToken cancellationToken)
         {
             if (throwOnSymbolsNotFound)
             {
-                VerifySymbolLocations(rdt);
+                if (symbolLocations == null)
+                {
+                    throw new Exception($"Symbol locations null for '{typeName}'.");
+                }
+                else if (!symbolLocations.Any())
+                {
+                    throw new Exception($"No symbols found for '{typeName}'");
+                }
             }
-            else if (rdt.SymbolLocations == null || !rdt.SymbolLocations.Any())
+            else if (symbolLocations == null || !symbolLocations.Any())
             {
-                Log.Warning($"No symbols found for '{rdt.DocsType.TypeName}'. Skipping.");
+                Log.Warning($"No symbols found for '{typeName}'. Skipping.");
                 return;
             }
 
-            Log.Cyan($"Porting comments for '{rdt.DocsType.TypeName}'. Locations: {rdt.SymbolLocations!.Count}...");
-            foreach (ResolvedLocation resolvedLocation in rdt.SymbolLocations)
+            Log.Cyan($"Porting comments for '{typeName}'. Locations: {symbolLocations!.Count}...");
+            foreach (ResolvedLocation resolvedLocation in symbolLocations)
             {
                 Log.Info($"Porting docs for tree '{resolvedLocation.Tree.FilePath}'...");
                 TripleSlashSyntaxRewriter rewriter = new(_docsComments, resolvedLocation.Model);
                 SyntaxNode? newRoot = rewriter.Visit(resolvedLocation.Tree.GetRoot(cancellationToken));
                 if (newRoot == null)
                 {
-                    throw new Exception($"Returned null root node for {rdt.DocsType.TypeName} in {resolvedLocation.Tree.FilePath}");
+                    throw new Exception($"Returned null root node for {typeName} in {resolvedLocation.Tree.FilePath}");
                 }
 
                 await File.WriteAllTextAsync(resolvedLocation.Tree.FilePath, newRoot.ToFullString(), cancellationToken).ConfigureAwait(false);
-                Log.Success($"Docs ported to '{rdt.DocsType.TypeName}'.");
-            }
-        }
-
-        private static void VerifySymbolLocations(ResolvedDocsType rdt)
-        {
-            if (rdt.SymbolLocations == null)
-            {
-                throw new Exception($"Symbol locations null for '{rdt.DocsType.TypeName}'.");
-            }
-            else if (!rdt.SymbolLocations.Any())
-            {
-                throw new Exception($"No symbols found for '{rdt.DocsType.TypeName}'");
+                Log.Success($"Docs ported to '{typeName}'.");
             }
         }
 
