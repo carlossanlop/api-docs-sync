@@ -1874,6 +1874,134 @@ public interface MyInterface
         return TestWithStringsAsync(stringTestData);
     }
 
+    [Fact]
+    public Task Convert_NewLines_To_Paras()
+    {
+        string docId = "T:MyNamespace.MyClass";
+
+        string docFile = @"<Type Name=""MyClass"" FullName=""MyNamespace.MyClass"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyClass"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary>MyClass summary line 1.
+MyClass summary line 2.</summary>
+    <remarks>MyClass remarks line 1.
+
+MyClass remarks line 2.</remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyVoidMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyClass.MyVoidMethod"" />
+      <Docs>
+        <summary>MyClass.MyVoidMethod summary line 1.
+MyClass.MyVoidMethod summary line 2.</summary>
+        <remarks>MyClass.MyVoidMethod remarks line 1.
+
+MyClass.MyVoidMethod remarks line 2.</remarks>
+        <exception cref=""T:System.NullReferenceException"">MyClass.MyVoidMethod exception line 1.
+
+-or-
+
+MyClass.MyVoidMethod exception line 2.</exception>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+        string originalCode = @"namespace MyNamespace;
+public class MyClass
+{
+    public void MyVoidMethod() { }
+}";
+
+        string expectedCode = @"namespace MyNamespace;
+/// <summary><para>MyClass summary line 1.</para>
+/// <para>MyClass summary line 2.</para></summary>
+/// <remarks><para>MyClass remarks line 1.</para>
+/// <para>MyClass remarks line 2.</para></remarks>
+public class MyClass
+{
+    /// <summary><para>MyClass.MyVoidMethod summary line 1.</para><para>MyClass.MyVoidMethod summary line 2.</para></summary>
+    /// <remarks><para>MyClass.MyVoidMethod remarks line 1.</para>
+    /// <para>MyClass.MyVoidMethod remarks line 2.</para></remarks>
+    /// <exception cref=""T:System.NullReferenceException""><para>MyClass.MyVoidMethod exception line 1.</para>
+    /// <para>-or-</para>
+    /// <para>MyClass.MyVoidMethod exception line 2.</para></exception>
+    public void MyVoidMethod() { }
+}";
+
+        List<string> docFiles = new() { docFile };
+        List<string> originalCodeFiles = new() { originalCode };
+        Dictionary<string, string> expectedCodeFiles = new() { { docId, expectedCode } };
+        StringTestData stringTestData = new(docFiles, originalCodeFiles, expectedCodeFiles, false);
+
+        return TestWithStringsAsync(stringTestData);
+    }
+
+    [Fact]
+    public Task Separate_Paras_With_NewLines()
+    {
+        string docId = "T:MyNamespace.MyClass";
+
+        string docFile = @"<Type Name=""MyClass"" FullName=""MyNamespace.MyClass"">
+  <TypeSignature Language=""DocId"" Value=""T:MyNamespace.MyClass"" />
+  <AssemblyInfo>
+    <AssemblyName>MyAssembly</AssemblyName>
+  </AssemblyInfo>
+  <Docs>
+    <summary><para>MyClass summary line 1.</para><para>MyClass summary line 2.</para></summary>
+    <remarks><para>MyClass remarks line 1.</para>
+<para>MyClass remarks line 2.</para></remarks>
+  </Docs>
+  <Members>
+    <Member MemberName=""MyVoidMethod"">
+      <MemberSignature Language=""DocId"" Value=""M:MyNamespace.MyClass.MyVoidMethod"" />
+      <Docs>
+        <summary><para>MyClass.MyVoidMethod summary line 1.</para><para>MyClass.MyVoidMethod summary line 2.</para></summary>
+        <remarks><para>MyClass.MyVoidMethod remarks line 1.</para>
+<para>MyClass.MyVoidMethod remarks line 2.</para></remarks>
+        <exception cref=""T:System.NullReferenceException"">
+          <para>MyClass.MyVoidMethod exception line 1.</para>
+          <para>-or-</para>
+          <para>MyClass.MyVoidMethod exception line 2.</para>
+        </exception>
+      </Docs>
+    </Member>
+  </Members>
+</Type>";
+
+        string originalCode = @"namespace MyNamespace;
+public class MyClass
+{
+    public void MyVoidMethod() { }
+}";
+
+        string expectedCode = @"namespace MyNamespace;
+/// <summary><para>MyClass summary line 1.</para>
+/// <para>MyClass summary line 2.</para></summary>
+/// <remarks><para>MyClass remarks line 1.</para>
+/// <para>MyClass remarks line 2.</para></remarks>
+public class MyClass
+{
+    /// <summary><para>MyClass.MyVoidMethod summary line 1.</para><para>MyClass.MyVoidMethod summary line 2.</para></summary>
+    /// <remarks><para>MyClass.MyVoidMethod remarks line 1.</para>
+    /// <para>MyClass.MyVoidMethod remarks line 2.</para></remarks>
+    /// <exception cref=""T:System.NullReferenceException""><para>MyClass.MyVoidMethod exception line 1.</para>
+    /// <para>-or-</para>
+    /// <para>MyClass.MyVoidMethod exception line 2.</para></exception>
+    public void MyVoidMethod() { }
+}";
+
+        List<string> docFiles = new() { docFile };
+        List<string> originalCodeFiles = new() { originalCode };
+        Dictionary<string, string> expectedCodeFiles = new() { { docId, expectedCode } };
+        StringTestData stringTestData = new(docFiles, originalCodeFiles, expectedCodeFiles, false);
+
+        return TestWithStringsAsync(stringTestData);
+    }
+
     private static Task TestWithStringsAsync(StringTestData stringTestData) =>
         TestWithStringsAsync(new Configuration() { SkipInterfaceImplementations = false }, DefaultAssembly, stringTestData);
 

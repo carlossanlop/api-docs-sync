@@ -1,10 +1,12 @@
-﻿// Licensed to the .NET Foundation under one or more agreements.
+// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using ApiDocsSync.PortToTripleSlash.Docs;
 using Microsoft.CodeAnalysis;
@@ -507,7 +509,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             return new();
         }
 
-        // Collects all tags with of the same name from a SyntaxTriviaList.
+        // Collects all tags of the same name from a SyntaxTriviaList.
         private static SyntaxTriviaList FindTag(string tag, SyntaxTriviaList leadingWhitespace, SyntaxTriviaList from)
         {
             List<XmlNodeSyntax> list = new();
@@ -732,6 +734,9 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             return relateds;
         }
 
+        /// <summary><para>Text1</para>
+        /// <para>Text2</para></summary>
+        /// <param name="leadingWhitespace">sdsds</param>
         private static XmlTextSyntax GetTextAsCommentedTokens(string text, SyntaxTriviaList leadingWhitespace, bool wrapWithNewLines = false)
         {
             text = CleanCrefs(text);
@@ -742,7 +747,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
             SyntaxTrivia leadingTrivia = SyntaxFactory.SyntaxTrivia(SyntaxKind.DocumentationCommentExteriorTrivia, string.Empty);
             SyntaxTriviaList leading = SyntaxTriviaList.Create(leadingTrivia);
-
+            SyntaxFactory.Parse
             string[] lines = text.Split(new char[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
             var tokens = new List<SyntaxToken>();
