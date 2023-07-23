@@ -1,11 +1,8 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text.RegularExpressions;
 using ApiDocsSync.PortToTripleSlash.Docs;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -91,170 +88,107 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
     internal class TripleSlashSyntaxRewriter : CSharpSyntaxRewriter
     {
         private DocsCommentsContainer DocsComments { get; }
-        private SemanticModel Model { get; }
+        private ResolvedLocation Location { get; }
+        private SemanticModel Model => Location.Model;
 
-        public TripleSlashSyntaxRewriter(DocsCommentsContainer docsComments, SemanticModel model) : base(visitIntoStructuredTrivia: true)
+        public TripleSlashSyntaxRewriter(DocsCommentsContainer docsComments, ResolvedLocation resolvedLocation) : base(visitIntoStructuredTrivia: false)
         {
             DocsComments = docsComments;
-            Model = model;
+            Location = resolvedLocation;
         }
 
-        public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node)
+        // TYPE VISITORS
+
+        public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node) => VisitType(node);
+
+        public override SyntaxNode? VisitDelegateDeclaration(DelegateDeclarationSyntax node) => VisitType(node);
+
+        public override SyntaxNode? VisitEnumDeclaration(EnumDeclarationSyntax node) => VisitType(node);
+
+        public override SyntaxNode? VisitInterfaceDeclaration(InterfaceDeclarationSyntax node) => VisitType(node);
+
+        public override SyntaxNode? VisitRecordDeclaration(RecordDeclarationSyntax node) => VisitType(node);
+
+        public override SyntaxNode? VisitStructDeclaration(StructDeclarationSyntax node) => VisitType(node);
+
+        // VARIABLE VISITORS
+
+        public override SyntaxNode? VisitEventFieldDeclaration(EventFieldDeclarationSyntax node) => VisitVariableDeclaration(node);
+
+        public override SyntaxNode? VisitFieldDeclaration(FieldDeclarationSyntax node) => VisitVariableDeclaration(node);
+
+        // METHOD VISITORS
+
+        public override SyntaxNode? VisitConstructorDeclaration(ConstructorDeclarationSyntax node) => VisitBaseMethodDeclaration(node);
+
+        public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node) => VisitBaseMethodDeclaration(node);
+
+        // TODO: Add test
+        public override SyntaxNode? VisitConversionOperatorDeclaration(ConversionOperatorDeclarationSyntax node) => VisitBaseMethodDeclaration(node);
+
+        // TODO: Add test
+        public override SyntaxNode? VisitIndexerDeclaration(IndexerDeclarationSyntax node) => VisitBaseMethodDeclaration(node);
+
+        public override SyntaxNode? VisitOperatorDeclaration(OperatorDeclarationSyntax node) => VisitBaseMethodDeclaration(node);
+
+        // OTHER VISITORS
+
+        public override SyntaxNode? VisitEnumMemberDeclaration(EnumMemberDeclarationSyntax node) => VisitMemberDeclaration(node);
+
+        public override SyntaxNode? VisitPropertyDeclaration(PropertyDeclarationSyntax node) => VisitBasePropertyDeclaration(node);
+
+        // THESE DO ACTUAL WORK
+
+        private SyntaxNode? VisitType(SyntaxNode? node)
         {
-            SyntaxNode? baseNode = base.VisitClassDeclaration(node);
-
-            ISymbol? symbol = Model.GetDeclaredSymbol(node);
-            if (symbol == null)
-            {
-                Log.Warning($"Symbol is null.");
-                return baseNode;
-            }
-
-            return VisitType(baseNode, symbol);
-        }
-
-        public override SyntaxNode? VisitConstructorDeclaration(ConstructorDeclarationSyntax node) =>
-            VisitBaseMethodDeclaration(node);
-
-        public override SyntaxNode? VisitDelegateDeclaration(DelegateDeclarationSyntax node)
-        {
-            SyntaxNode? baseNode = base.VisitDelegateDeclaration(node);
-
-            ISymbol? symbol = Model.GetDeclaredSymbol(node);
-            if (symbol == null)
-            {
-                Log.Warning($"Symbol is null.");
-                return baseNode;
-            }
-
-            return VisitType(baseNode, symbol);
-        }
-
-        public override SyntaxNode? VisitEnumDeclaration(EnumDeclarationSyntax node)
-        {
-            SyntaxNode? baseNode = base.VisitEnumDeclaration(node);
-
-            ISymbol? symbol = Model.GetDeclaredSymbol(node);
-            if (symbol == null)
-            {
-                Log.Warning($"Symbol is null.");
-                return baseNode;
-            }
-
-            return VisitType(baseNode, symbol);
-        }
-
-        public override SyntaxNode? VisitEnumMemberDeclaration(EnumMemberDeclarationSyntax node) =>
-            VisitMemberDeclaration(node);
-
-        public override SyntaxNode? VisitEventFieldDeclaration(EventFieldDeclarationSyntax node) =>
-            VisitVariableDeclaration(node);
-
-        public override SyntaxNode? VisitFieldDeclaration(FieldDeclarationSyntax node) =>
-            VisitVariableDeclaration(node);
-
-        public override SyntaxNode? VisitInterfaceDeclaration(InterfaceDeclarationSyntax node)
-        {
-            SyntaxNode? baseNode = base.VisitInterfaceDeclaration(node);
-
-            ISymbol? symbol = Model.GetDeclaredSymbol(node);
-            if (symbol == null)
-            {
-                Log.Warning($"Symbol is null.");
-                return baseNode;
-            }
-
-            return VisitType(baseNode, symbol);
-        }
-
-        public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node) =>
-            VisitBaseMethodDeclaration(node);
-
-        public override SyntaxNode? VisitOperatorDeclaration(OperatorDeclarationSyntax node) =>
-            VisitBaseMethodDeclaration(node);
-
-        public override SyntaxNode? VisitPropertyDeclaration(PropertyDeclarationSyntax node)
-        {
-            if (!TryGetMember(node, out DocsMember? member))
+            if (node == null || !TryGetType(node, out DocsType? type))
             {
                 return node;
             }
-            return new TriviaGenerator(DocsComments.Config, node, member).Generate();
+            
+            return TriviaGenerator.Generate(DocsComments.Config, Model, node, type);
         }
 
-        public override SyntaxNode? VisitRecordDeclaration(RecordDeclarationSyntax node)
-        {
-            SyntaxNode? baseNode = base.VisitRecordDeclaration(node);
-
-            ISymbol? symbol = Model.GetDeclaredSymbol(node);
-            if (symbol == null)
-            {
-                Log.Warning($"Symbol is null.");
-                return baseNode;
-            }
-
-            return VisitType(baseNode, symbol);
-        }
-
-        public override SyntaxNode? VisitStructDeclaration(StructDeclarationSyntax node)
-        {
-            SyntaxNode? baseNode = base.VisitStructDeclaration(node);
-
-            ISymbol? symbol = Model.GetDeclaredSymbol(node);
-            if (symbol == null)
-            {
-                Log.Warning($"Symbol is null.");
-                return baseNode;
-            }
-
-            return VisitType(baseNode, symbol);
-        }
-
-        private SyntaxNode? VisitType(SyntaxNode? node, ISymbol? symbol)
-        {
-            if (node == null || symbol == null)
-            {
-                return node;
-            }
-
-            string? docId = symbol.GetDocumentationCommentId();
-            if (string.IsNullOrWhiteSpace(docId))
-            {
-                Log.Warning($"DocId is null or empty.");
-                return node;
-            }
-
-            if (!TryGetType(symbol, out DocsType? type))
-            {
-                return node;
-            }
-            return new TriviaGenerator(DocsComments.Config, node, type).Generate();
-        }
-
-        private SyntaxNode? VisitBaseMethodDeclaration(BaseMethodDeclarationSyntax node)
+        private SyntaxNode? VisitBaseMethodDeclaration(SyntaxNode? node)
         {
             // The Docs files only contain docs for public elements,
             // so if no comments are found, we return the node unmodified
-            if (!TryGetMember(node, out DocsMember? member))
+            if (node == null || !TryGetMember(node, out DocsMember? member))
             {
                 return node;
             }
-            return new TriviaGenerator(DocsComments.Config, node, member).Generate();
+            
+            return TriviaGenerator.Generate(DocsComments.Config, Model, node, member);
         }
 
-        private SyntaxNode? VisitMemberDeclaration(MemberDeclarationSyntax node)
+        private SyntaxNode? VisitBasePropertyDeclaration(SyntaxNode? node)
         {
             if (!TryGetMember(node, out DocsMember? member))
             {
                 return node;
             }
-            return new TriviaGenerator(DocsComments.Config, node, member).Generate();
+            return TriviaGenerator.Generate(DocsComments.Config, Model, node, member);
         }
 
-        private SyntaxNode? VisitVariableDeclaration(BaseFieldDeclarationSyntax node)
+        // These nodes never have remarks
+        private SyntaxNode? VisitMemberDeclaration(SyntaxNode? node)
         {
+            if (!TryGetMember(node, out DocsMember? member))
+            {
+                return node;
+            }
+            return TriviaGenerator.Generate(DocsComments.Config, Model, node, member);
+        }
+
+        private SyntaxNode? VisitVariableDeclaration(SyntaxNode? node)
+        {
+            if (node is not BaseFieldDeclarationSyntax baseFieldDeclaration)
+            {
+                return node;
+            }
+
             // The comments need to be extracted from the underlying variable declarator inside the declaration
-            VariableDeclarationSyntax declaration = node.Declaration;
+            VariableDeclarationSyntax declaration = baseFieldDeclaration.Declaration;
 
             // Only port docs if there is only one variable in the declaration
             if (declaration.Variables.Count == 1)
@@ -263,15 +197,23 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
                 {
                     return node;
                 }
-                return new TriviaGenerator(DocsComments.Config, node, member).Generate();
+                return TriviaGenerator.Generate(DocsComments.Config, Model, node, member);
             }
 
             return node;
         }
 
-        private bool TryGetMember(SyntaxNode node, [NotNullWhen(returnValue: true)] out DocsMember? member)
+        // API DOCS RETRIEVAL METHODS
+
+        private bool TryGetMember(SyntaxNode? node, [NotNullWhen(returnValue: true)] out DocsMember? member)
         {
             member = null;
+
+            if (node == null || !IsPublic(node))
+            {
+                return false;
+            }
+
             if (Model.GetDeclaredSymbol(node) is ISymbol symbol)
             {
                 string? docId = symbol.GetDocumentationCommentId();
@@ -284,17 +226,36 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             return member != null;
         }
 
-        private bool TryGetType(ISymbol symbol, [NotNullWhen(returnValue: true)] out DocsType? type)
+        private bool TryGetType(SyntaxNode? node, [NotNullWhen(returnValue: true)] out DocsType? type)
         {
             type = null;
 
-            string? docId = symbol.GetDocumentationCommentId();
-            if (!string.IsNullOrWhiteSpace(docId))
+            if (node == null || !IsPublic(node))
             {
-                DocsComments.Types.TryGetValue(docId, out type);
+                return false;
+            }
+
+            if (Model.GetDeclaredSymbol(node) is ISymbol symbol)
+            {
+                string? docId = symbol.GetDocumentationCommentId();
+                if (!string.IsNullOrWhiteSpace(docId))
+                {
+                    DocsComments.Types.TryGetValue(docId, out type);
+                }
             }
 
             return type != null;
+        }
+
+        private bool IsPublic(SyntaxNode? node)
+        {
+            if (node is not MemberDeclarationSyntax baseNode ||
+                !baseNode.Modifiers.Any(t => t.IsKind(SyntaxKind.PublicKeyword)))
+            {
+                return false;
+            }
+
+            return true;
         }
     }
 }
