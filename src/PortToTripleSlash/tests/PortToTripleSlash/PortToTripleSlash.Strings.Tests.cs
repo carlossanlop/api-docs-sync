@@ -1367,22 +1367,22 @@ GetRemarks(skipRemarks, "MyClass.MyVoidMethod", "    ") +
 </Type>";
 
         string originalCode = @"namespace MyNamespace {
-  /// <summary>Old MyClass type summary.</summary>
-  /// <remarks>Old MyClass type remarks.</remarks>
+  /// <summary>Replaceable MyClass type summary.</summary>
+  /// <remarks>Unreplaceable MyClass type remarks.</remarks>
   public class MyClass
   {
-      /// <summary>Old MyClass constructor summary.</summary>
-      /// <remarks>Old MyClass constructor remarks.</remarks>
+      /// <summary>Unreplaceable MyClass constructor summary.</summary>
+      /// <remarks>Replaceable MyClass constructor remarks.</remarks>
       public MyClass() { }
   }
 }";
 
         string expectedCode = @"namespace MyNamespace {
   /// <summary>New MyClass type summary.</summary>
-  /// <remarks>Old MyClass type remarks.</remarks>
+  /// <remarks>Unreplaceable MyClass type remarks.</remarks>
   public class MyClass
   {
-      /// <summary>Old MyClass constructor summary.</summary>
+      /// <summary>Unreplaceable MyClass constructor summary.</summary>
       /// <remarks>New MyClass constructor remarks.</remarks>
       public MyClass() { }
   }
