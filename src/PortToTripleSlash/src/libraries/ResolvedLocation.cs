@@ -13,13 +13,14 @@ namespace ApiDocsSync.PortToTripleSlash
         public SyntaxTree Tree { get; }
         public SemanticModel Model { get; }
         public SyntaxNode? NewNode { get; set; }
+
         public ResolvedLocation(string typeName, Compilation compilation, Location location, SyntaxTree tree)
         {
             TypeName = typeName;
             Compilation = compilation;
             Location = location;
             Tree = tree;
-            Model = compilation.GetSemanticModel(Tree);
+            Model = Compilation.GetSemanticModel(Tree);
         }
     }
 }

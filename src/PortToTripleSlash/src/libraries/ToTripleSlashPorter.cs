@@ -96,7 +96,9 @@ namespace ApiDocsSync.PortToTripleSlash
                 Log.Error("No docs files found.");
                 return;
             }
+
             await MatchSymbolsAsync(_config.Loader.MainProject.Compilation, isMSBuildProject: true, cancellationToken).ConfigureAwait(false);
+
             await PortAsync(isMSBuildProject: true, cancellationToken).ConfigureAwait(false);
         }
 

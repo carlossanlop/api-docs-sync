@@ -1,12 +1,19 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Collections.Generic;
+using System.Diagnostics;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Reflection.Emit;
 using ApiDocsSync.PortToTripleSlash.Docs;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Editing;
+using System.Reflection.Metadata;
+using System.Xml;
 
 namespace ApiDocsSync.PortToTripleSlash.Roslyn
 {
@@ -141,24 +148,22 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
         private SyntaxNode? VisitType(SyntaxNode? node)
         {
-            if (node == null || !TryGetType(node, out DocsType? type))
+            if (!TryGetType(node, out DocsType? type))
             {
                 return node;
             }
-            
-            return TriviaGenerator.Generate(DocsComments.Config, Model, node, type);
+            return Generate(node, type);
         }
 
         private SyntaxNode? VisitBaseMethodDeclaration(SyntaxNode? node)
         {
             // The Docs files only contain docs for public elements,
             // so if no comments are found, we return the node unmodified
-            if (node == null || !TryGetMember(node, out DocsMember? member))
+            if (!TryGetMember(node, out DocsMember? member))
             {
                 return node;
             }
-            
-            return TriviaGenerator.Generate(DocsComments.Config, Model, node, member);
+            return Generate(node, member);
         }
 
         private SyntaxNode? VisitBasePropertyDeclaration(SyntaxNode? node)
@@ -167,7 +172,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             {
                 return node;
             }
-            return TriviaGenerator.Generate(DocsComments.Config, Model, node, member);
+            return Generate(node, member);
         }
 
         // These nodes never have remarks
@@ -177,7 +182,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             {
                 return node;
             }
-            return TriviaGenerator.Generate(DocsComments.Config, Model, node, member);
+            return Generate(node, member);
         }
 
         private SyntaxNode? VisitVariableDeclaration(SyntaxNode? node)
@@ -197,7 +202,8 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
                 {
                     return node;
                 }
-                return TriviaGenerator.Generate(DocsComments.Config, Model, node, member);
+
+                return Generate(node, member);
             }
 
             return node;
@@ -205,11 +211,11 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
         // API DOCS RETRIEVAL METHODS
 
-        private bool TryGetMember(SyntaxNode? node, [NotNullWhen(returnValue: true)] out DocsMember? member)
+        private bool TryGetMember([NotNullWhen(returnValue: true)] SyntaxNode? node, [NotNullWhen(returnValue: true)] out DocsMember? member)
         {
             member = null;
 
-            if (node == null || !IsPublic(node))
+            if (!IsPublic(node))
             {
                 return false;
             }
@@ -226,7 +232,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             return member != null;
         }
 
-        private bool TryGetType(SyntaxNode? node, [NotNullWhen(returnValue: true)] out DocsType? type)
+        private bool TryGetType([NotNullWhen(returnValue: true)] SyntaxNode? node, [NotNullWhen(returnValue: true)] out DocsType? type)
         {
             type = null;
 
@@ -247,15 +253,176 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             return type != null;
         }
 
-        private bool IsPublic(SyntaxNode? node)
+        private static bool IsPublic([NotNullWhen(returnValue: true)] SyntaxNode? node)
         {
-            if (node is not MemberDeclarationSyntax baseNode ||
+            if (node == null ||
+                node is not MemberDeclarationSyntax baseNode ||
                 !baseNode.Modifiers.Any(t => t.IsKind(SyntaxKind.PublicKeyword)))
             {
                 return false;
             }
 
             return true;
+        }
+
+        public SyntaxNode Generate(SyntaxNode node, IDocsAPI api)
+        {
+            List<SyntaxTrivia> updatedLeadingTrivia = new();
+
+            bool replacedExisting = false;
+            foreach (SyntaxTrivia trivia in node.GetLeadingTrivia())
+            {
+                if (!trivia.HasStructure)
+                {
+                    updatedLeadingTrivia.Add(trivia);
+                    continue;
+                }
+
+                SyntaxNode? structuredTrivia = trivia.GetStructure();
+                Debug.Assert(structuredTrivia != null);
+
+                if (!structuredTrivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia))
+                {
+                    updatedLeadingTrivia.Add(trivia);
+                    continue;
+                }
+
+                if (structuredTrivia is DocumentationCommentTriviaSyntax documentationCommentTrivia)
+                {
+                    List<SyntaxNode> updatedNodeList = GetUpdatedXmlElements(documentationCommentTrivia.Content, api, DocsComments.Config.SkipRemarks);
+
+                    DocumentationCommentTriviaSyntax newDocComments = DocumentationCommentTriviaWithUpdatedContent(
+                        documentationCommentTrivia.Kind(), updatedNodeList, documentationCommentTrivia.EndOfComment);
+
+                    newDocComments = newDocComments
+                        .WithLeadingTrivia(structuredTrivia.GetLeadingTrivia())
+                        .WithTrailingTrivia(structuredTrivia.GetTrailingTrivia());
+
+                    SyntaxTrivia newTrivia = SyntaxFactory.Trivia(newDocComments);
+                    updatedLeadingTrivia.Add(newTrivia);
+
+                    replacedExisting = true;
+                }
+                else
+                {
+                    throw new NotSupportedException($"Unsupported trivia kind: {trivia.Kind()}");
+                }
+            }
+
+            // Either there was no pre-existing trivia or there were no existing triple slash
+            // So need to build it from scratch
+            if (!replacedExisting)
+            {
+            }
+
+            return node.WithLeadingTrivia(updatedLeadingTrivia);
+        }
+
+        // This exists in SyntaxGenerator in dotnet/roslyn but it's not accessible.
+        private DocumentationCommentTriviaSyntax DocumentationCommentTriviaWithUpdatedContent(SyntaxKind documentationCommentTriviaKind, IEnumerable<SyntaxNode> content, SyntaxToken documentationCommentTriviaEndOfComment)
+        {
+            return SyntaxFactory.DocumentationCommentTrivia(
+                documentationCommentTriviaKind,
+                (SyntaxList<XmlNodeSyntax>)SyntaxFactory.List(content),
+                documentationCommentTriviaEndOfComment);
+        }
+
+
+        internal List<SyntaxNode> GetUpdatedXmlElements(SyntaxList<XmlNodeSyntax> originalXmls, IDocsAPI api, bool skipRemarks)
+        {
+            List<SyntaxNode> updated = new();
+
+            // Summary is in all api kinds
+            XmlNodeSyntax summaryNode = GetOrCreateXmlNode(originalXmls, "summary", api.Summary);
+            updated.Add(summaryNode);
+
+            if (api.ReturnType is not "" and not "System.Void")
+            {
+                XmlNodeSyntax returnsNode = GetOrCreateXmlNode(originalXmls, "returns", api.Returns);
+                updated.Add(returnsNode);
+            }
+
+            if (!skipRemarks)
+            {
+                XmlNodeSyntax remarksNode = GetOrCreateXmlNode(originalXmls, "remarks", api.Remarks);
+                updated.Add(remarksNode);
+            }
+
+            return updated;
+
+            // Find summary xml among existing triple slash, if found
+            //    check if you have a Summary string. If you do, override the found summary xml text
+            //    then re-add the (maybe updated) summary xml
+            // if not found, add an empty one.
+
+            // Then depending on the API type, do the same for the other items in the expected order
+
+            // For optional items, backport them only if they are relevant to the developer
+            // Say you want to backport relateds (maybe not relevant), so see if you have a related xml among existing triple slash, if found
+            //    check if you have a Related string. If you do, override the found related xml text
+            //    if not found, add a new related xml text with the Related string
+            // then add (or re-add) the related xml
+
+            // Do the same with remarks as you did with summary but only if Config says you can
+
+            //SyntaxTrivia trivia = node.GetLeadingTrivia().SingleOrDefault(t => t.HasStructure);
+
+            //List<XmlNodeSyntax> content = new();
+
+            //SyntaxToken summaryLiteral = SyntaxFactory.XmlTextLiteral("I am the summary");
+            //XmlTextSyntax summaryText = SyntaxFactory.XmlText(summaryLiteral);
+            //XmlElementSyntax summary = SyntaxFactory.XmlSummaryElement(summaryText);
+            //content.Add(summary);
+
+            //SyntaxToken remarksLiteral = SyntaxFactory.XmlTextLiteral("I am the remarks");
+            //XmlTextSyntax remarksText = SyntaxFactory.XmlText(remarksLiteral);
+            //XmlElementSyntax remarks = SyntaxFactory.XmlRemarksElement(remarksText);
+            //content.Add(remarks);
+
+            //return newNode;
+        }
+
+        private XmlNodeSyntax GetOrCreateXmlNode(SyntaxList<XmlNodeSyntax> originalXmls, string tagName, string apiDocsText)
+        {
+            if (!apiDocsText.IsDocsEmpty())
+            {
+                // Override with api docs text
+                return CreateXmlNode(tagName, apiDocsText);
+            }
+
+            // Try to get existing one, or if not found, create an empty one
+            return originalXmls.FirstOrDefault(xmlNode => DoesNodeHasTag(xmlNode, tagName)) ??
+                   CreateXmlNode(tagName, string.Empty);
+        }
+
+        private XmlNodeSyntax CreateXmlNode(string tagName, string text)
+        {
+            return SyntaxFactory.XmlExampleElement(
+                        SyntaxFactory.SingletonList<XmlNodeSyntax>(
+                            SyntaxFactory.XmlText()
+                            .WithTextTokens(
+                                SyntaxFactory.TokenList(
+                                    SyntaxFactory.XmlTextLiteral(
+                                        SyntaxFactory.TriviaList(),
+                                        text,
+                                        text,
+                                        SyntaxFactory.TriviaList())))))
+                        .WithStartTag(
+                        SyntaxFactory.XmlElementStartTag(
+                            SyntaxFactory.XmlName(
+                                SyntaxFactory.Identifier(tagName))))
+                        .WithEndTag(
+                        SyntaxFactory.XmlElementEndTag(
+                            SyntaxFactory.XmlName(
+                                SyntaxFactory.Identifier(tagName))));
+        }
+
+        private bool DoesNodeHasTag(SyntaxNode xmlNode, string tagName)
+        {
+            return xmlNode.Kind() is SyntaxKind.XmlElement &&
+            xmlNode is XmlElementSyntax xmlElement &&
+            xmlElement.StartTag.Name is XmlNameSyntax xmlName &&
+            xmlName.LocalName.ValueText == tagName;
         }
     }
 }

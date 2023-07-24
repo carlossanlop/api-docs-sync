@@ -4,8 +4,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Reflection.Metadata;
 using System.Xml.Linq;
 using ApiDocsSync.PortToTripleSlash.Docs;
 using Microsoft.CodeAnalysis;
@@ -86,97 +89,9 @@ internal static class TriviaGenerator
     //    Type = type;
     //}
 
-    public static SyntaxNode Generate(Configuration config, SemanticModel model, SyntaxNode node, DocsType type)
-    {
-        _ = config;
-        _ = model;
-        _ = node;
-        _ = type;
 
-        ImmutableArray<SyntaxTrivia>.Builder updatedLeadingTrivia = ImmutableArray.CreateBuilder<SyntaxTrivia>();
-
-        foreach (SyntaxTrivia trivia in node.GetLeadingTrivia())
-        {
-            if (!trivia.HasStructure)
-            {
-                updatedLeadingTrivia.Add(trivia);
-                continue;
-            }
-
-            SyntaxNode? structuredTrivia = trivia.GetStructure();
-            if (structuredTrivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia) || structuredTrivia.IsKind(SyntaxKind.MultiLineDocumentationCommentTrivia))
-            {
-                updatedLeadingTrivia.Add(trivia);
-            }
-
-            if (structuredTrivia is DocumentationCommentTriviaSyntax documentationCommentTrivia)
-            {
-                SyntaxList<XmlNodeSyntax> content = documentationCommentTrivia.Content;
-            }
-            
-        }
-
-        return node;
-        //SyntaxTrivia trivia = node.GetLeadingTrivia().SingleOrDefault(t => t.HasStructure);
-
-        //List<XmlNodeSyntax> content = new();
-
-        //SyntaxToken summaryLiteral = SyntaxFactory.XmlTextLiteral("I am the summary");
-        //XmlTextSyntax summaryText = SyntaxFactory.XmlText(summaryLiteral);
-        //XmlElementSyntax summary = SyntaxFactory.XmlSummaryElement(summaryText);
-        //content.Add(summary);
-
-        //SyntaxToken remarksLiteral = SyntaxFactory.XmlTextLiteral("I am the remarks");
-        //XmlTextSyntax remarksText = SyntaxFactory.XmlText(remarksLiteral);
-        //XmlElementSyntax remarks = SyntaxFactory.XmlRemarksElement(remarksText);
-        //content.Add(remarks);
-
-        //DocumentationCommentTriviaSyntax comment = SyntaxFactory.DocumentationComment(content.ToArray());
-
-        //SyntaxNode newNode = node.WithTriviaFrom(comment);
-
-        //return newNode;
-    }
-
-    public static SyntaxNode Generate(Configuration config, SemanticModel model, SyntaxNode node, DocsMember member)
-    {
-        _ = config;
-        _ = member;
-
-        SyntaxTriviaList oldLeadingTrivia = node.GetLeadingTrivia();
-        List<SyntaxTrivia> triviaList = new();
-        foreach (var c in oldLeadingTrivia)
-        {
-            ISymbol? symbol = model.GetDeclaredSymbol(node); // IMethodSymbol
-            // Whitespace or preprocesor directive
-            bool isPartOfStructuredTrivia = c.IsPartOfStructuredTrivia();
-            SyntaxKind kind = c.Kind();
-            SyntaxToken token = c.Token;
-            bool hasStructure = c.HasStructure;
-            bool isDirective = c.IsDirective;
-            triviaList.Add(c);
-            // c.Kind() == WhitespaceTrivia
-            // - c.IsDirective = false
-            // - c.HasStructure = false
-            // - c.Token: the word `public` which is the assigned owner of these triple slash
-            // - c.IsPartOfStructuredTrivia() == false
-
-            // c.Kind() == SingleLineDocumentationCommentTrivia (triple slash)
-            // - c.IsDirective = false
-            // - c.HasStructure = true  -----
-            // - c.Token: `public`
-            // - c.IsPartOfStructiredTrivia() = false
-
-            // c.Kind() == SingleLineCommentTrivia (double slash)
-            // - c.IsDirective = false
-            // - c.HasStructure = false
-            // - c.Token = `public`
-            // - c.IsPartOfStructuredTrivia = false
-            Console.WriteLine(c);
-        }
-        SyntaxTriviaList newLeadingTrivia = new SyntaxTriviaList(triviaList);
-        return node.WithLeadingTrivia(newLeadingTrivia);
-
+    //private void Old()
+    //{
         //SyntaxTriviaList leadingWhitespace = GetLeadingWhitespace();
         //SyntaxTriviaList leadingTrivia = Node.GetLeadingTrivia();
         //DocsAPI? api = Kind == APIKind.Member ? Member : Type;
@@ -231,7 +146,7 @@ internal static class TriviaGenerator
         //}
 
         //return GetNodeWithTrivia(leadingWhitespace, trivias.ToArray());
-    }
+    //}
 
     //private SyntaxNode GetNodeWithTrivia(SyntaxTriviaList leadingWhitespace, params SyntaxTriviaList[] trivias)
     //{
