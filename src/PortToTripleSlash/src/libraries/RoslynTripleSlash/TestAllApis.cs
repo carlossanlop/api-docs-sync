@@ -4,7 +4,7 @@
 
 using System;
 
-namespace libraries.RoslynTripleSlash;
+namespace libraries.RoslynTripleSlash.TestAllApis;
 
 /// <summary>
 /// 

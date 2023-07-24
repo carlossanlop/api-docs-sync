@@ -1306,24 +1306,28 @@ GetRemarks(skipRemarks, "MyClass.MyVoidMethod", "    ") +
   </Members>
 </Type>";
 
-        string originalCode = @"namespace MyNamespace;
-// Comment on top of type
-public class MyClass
+        string originalCode = @"namespace MyNamespace
 {
-    // Comment on top of constructor
-    public MyClass() { }
+    // Comment on top of type
+    public class MyClass
+    {
+        // Comment on top of constructor
+        public MyClass() { }
+    }
 }";
 
-        string expectedCode = @"namespace MyNamespace;
-// Comment on top of type
-/// <summary>This is the MyClass type summary.</summary>" +
-GetRemarks(skipRemarks, "MyClass type") +
-@"public class MyClass
+        string expectedCode = @"namespace MyNamespace
 {
-    // Comment on top of constructor
-    /// <summary>This is the MyClass constructor summary.</summary>" +
-GetRemarks(skipRemarks, "MyClass constructor", "    ") +
-@"    public MyClass() { }
+    // Comment on top of type
+    /// <summary>This is the MyClass type summary.</summary>" +
+    GetRemarks(skipRemarks, "MyClass type") +
+    @"public class MyClass
+    {
+        // Comment on top of constructor
+        /// <summary>This is the MyClass constructor summary.</summary>" +
+    GetRemarks(skipRemarks, "MyClass constructor", "    ") +
+    @"    public MyClass() { }
+    }
 }";
 
         List<string> docFiles = new() { docFile };

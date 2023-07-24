@@ -14,84 +14,107 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Editing;
 using System.Reflection.Metadata;
 using System.Xml;
+using System.Xml.Linq;
+
+/*
+ * According to the Roslyn Quoter: https://roslynquoter.azurewebsites.net/
+ * This code:
+
+/// <summary>Hello</summary>
+/// <remarks>World</remarks>
+public class MyClass { }
+
+ * Can be generated using:
+
+SyntaxFactory.CompilationUnit()
+.WithMembers(
+    SyntaxFactory.SingletonList<MemberDeclarationSyntax>(
+        SyntaxFactory.ClassDeclaration("MyClass")
+        .WithModifiers(
+            SyntaxFactory.TokenList(
+                SyntaxFactory.Token(
+                    SyntaxFactory.TriviaList(
+                        SyntaxFactory.Trivia(
+                            SyntaxFactory.DocumentationCommentTrivia(
+                                SyntaxKind.SingleLineDocumentationCommentTrivia,
+                                SyntaxFactory.List<XmlNodeSyntax>(
+                                    new XmlNodeSyntax[]{
+                                        SyntaxFactory.XmlText()
+                                        .WithTextTokens(
+                                            SyntaxFactory.TokenList(
+                                                SyntaxFactory.XmlTextLiteral(
+                                                    SyntaxFactory.TriviaList(
+                                                        SyntaxFactory.DocumentationCommentExterior("///")),
+                                                    " ",
+                                                    " ",
+                                                    SyntaxFactory.TriviaList()))),
+                                        SyntaxFactory.XmlExampleElement(
+                                            SyntaxFactory.SingletonList<XmlNodeSyntax>(
+                                                SyntaxFactory.XmlText()
+                                                .WithTextTokens(
+                                                    SyntaxFactory.TokenList(
+                                                        SyntaxFactory.XmlTextLiteral(
+                                                            SyntaxFactory.TriviaList(),
+                                                            "Hello",
+                                                            "Hello",
+                                                            SyntaxFactory.TriviaList())))))
+                                        .WithStartTag(
+                                            SyntaxFactory.XmlElementStartTag(
+                                                SyntaxFactory.XmlName(
+                                                    SyntaxFactory.Identifier("summary"))))
+                                        .WithEndTag(
+                                            SyntaxFactory.XmlElementEndTag(
+                                                SyntaxFactory.XmlName(
+                                                    SyntaxFactory.Identifier("summary")))),
+                                        SyntaxFactory.XmlText()
+                                        .WithTextTokens(
+                                            SyntaxFactory.TokenList(
+                                                new []{
+                                                    SyntaxFactory.XmlTextNewLine(
+                                                        SyntaxFactory.TriviaList(),
+                                                        "\n",
+                                                        "\n",
+                                                        SyntaxFactory.TriviaList()),
+                                                    SyntaxFactory.XmlTextLiteral(
+                                                        SyntaxFactory.TriviaList(
+                                                            SyntaxFactory.DocumentationCommentExterior("///")),
+                                                        " ",
+                                                        " ",
+                                                        SyntaxFactory.TriviaList())})),
+                                        SyntaxFactory.XmlExampleElement(
+                                            SyntaxFactory.SingletonList<XmlNodeSyntax>(
+                                                SyntaxFactory.XmlText()
+                                                .WithTextTokens(
+                                                    SyntaxFactory.TokenList(
+                                                        SyntaxFactory.XmlTextLiteral(
+                                                            SyntaxFactory.TriviaList(),
+                                                            "World",
+                                                            "World",
+                                                            SyntaxFactory.TriviaList())))))
+                                        .WithStartTag(
+                                            SyntaxFactory.XmlElementStartTag(
+                                                SyntaxFactory.XmlName(
+                                                    SyntaxFactory.Identifier("remarks"))))
+                                        .WithEndTag(
+                                            SyntaxFactory.XmlElementEndTag(
+                                                SyntaxFactory.XmlName(
+                                                    SyntaxFactory.Identifier("remarks")))),
+                                        SyntaxFactory.XmlText()
+                                        .WithTextTokens(
+                                            SyntaxFactory.TokenList(
+                                                SyntaxFactory.XmlTextNewLine(
+                                                    SyntaxFactory.TriviaList(),
+                                                    "\n",
+                                                    "\n",
+                                                    SyntaxFactory.TriviaList())))})))),
+                    SyntaxKind.PublicKeyword,
+                    SyntaxFactory.TriviaList())))))
+.NormalizeWhitespace()
+ 
+*/
 
 namespace ApiDocsSync.PortToTripleSlash.Roslyn
 {
-    /*
-    The following triple slash comments section:
-
-        /// <summary>
-        /// My summary.
-        /// </summary>
-        /// <param name="paramName">My param description.</param>
-        /// <remarks>My remarks.</remarks>
-        public ...
-
-    translates to this syntax tree structure:
-
-    PublicKeyword (SyntaxToken) -> The public keyword including its trivia.
-        Lead: EndOfLineTrivia -> The newline char before the 4 whitespace chars before the triple slash comments.
-        Lead: WhitespaceTrivia -> The 4 whitespace chars before the triple slash comments.
-        Lead: SingleLineDocumentationCommentTrivia (SyntaxTrivia)
-            SingleLineDocumentationCommentTrivia (DocumentationCommentTriviaSyntax) -> The triple slash comments, excluding the first 3 slash chars.
-                XmlText (XmlTextSyntax)
-                    XmlTextLiteralToken (SyntaxToken) -> The space between the first triple slash and <summary>.
-                        Lead: DocumentationCommentExteriorTrivia (SyntaxTrivia) -> The first 3 slash chars.
-
-                XmlElement (XmlElementSyntax) -> From <summary> to </summary>. Excludes the first 3 slash chars, but includes the second and third trios.
-                    XmlElementStartTag (XmlElementStartTagSyntax) -> <summary>
-                        LessThanToken (SyntaxToken) -> <
-                        XmlName (XmlNameSyntax) -> summary
-                            IdentifierToken (SyntaxToken) -> summary
-                        GreaterThanToken (SyntaxToken) -> >
-                    XmlText (XmlTextSyntax) -> Everything after <summary> and before </summary>
-                        XmlTextLiteralNewLineToken (SyntaxToken) -> endline after <summary>
-                        XmlTextLiteralToken (SyntaxToken) -> [ My summary.]
-                            Lead: DocumentationCommentExteriorTrivia (SyntaxTrivia) -> endline after summary text
-                        XmlTextLiteralNewToken (SyntaxToken) -> Space between 3 slashes and </summary>
-                            Lead: DocumentationCommentExteriorTrivia (SyntaxTrivia) -> whitespace + 3 slashes before the </summary>
-                    XmlElementEndTag (XmlElementEndTagSyntax) -> </summary>
-                        LessThanSlashToken (SyntaxToken) -> </
-                        XmlName (XmlNameSyntax) -> summary
-                            IdentifierToken (SyntaxToken) -> summary
-                        GreaterThanToken (SyntaxToken) -> >
-                XmlText -> endline + whitespace + 3 slahes before <param
-                    XmlTextLiteralNewLineToken (XmlTextSyntax) -> endline after </summary>
-                    XmlTextLiteralToken (XmlTextLiteralToken) -> space after 3 slashes and before <param
-                        Lead: DocumentationCommentExteriorTrivia (SyntaxTrivia) -> whitespace + 3 slashes before the space and <param
-
-                XmlElement -> <param name="...">...</param>
-                    XmlElementStartTag -> <param name="...">
-                        LessThanToken -> <
-                        XmlName -> param
-                            IdentifierToken -> param
-                        XmlNameAttribute (XmlNameAttributeSyntax) -> name="paramName"
-                            XmlName -> name
-                                IdentifierToken -> name
-                                    Lead: WhitespaceTrivia -> space between param and name
-                            EqualsToken -> =
-                            DoubleQuoteToken -> opening "
-                            IdentifierName -> paramName
-                                IdentifierToken -> paramName
-                            DoubleQuoteToken -> closing "
-                        GreaterThanToken -> >
-                    XmlText -> My param description.
-                        XmlTextLiteralToken -> My param description.
-                    XmlElementEndTag -> </param>
-                        LessThanSlashToken -> </
-                        XmlName -> param
-                            IdentifierToken -> param
-                        GreaterThanToken -> >
-                XmlText -> newline + 4 whitespace chars + /// before <remarks>
-
-                XmlElement -> <remarks>My remarks.</remarks>
-                XmlText -> new line char after </remarks>
-                    XmlTextLiteralNewLineToken -> new line char after </remarks>
-                EndOfDocumentationCommentToken (SyntaxToken) -> invisible
-
-        Lead: WhitespaceTrivia -> The 4 whitespace chars before the public keyword.
-        Trail: WhitespaceTrivia -> The single whitespace char after the public keyword.
-    */
     internal class TripleSlashSyntaxRewriter : CSharpSyntaxRewriter
     {
         private DocsCommentsContainer DocsComments { get; }
@@ -270,42 +293,55 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             List<SyntaxTrivia> updatedLeadingTrivia = new();
 
             bool replacedExisting = false;
-            foreach (SyntaxTrivia trivia in node.GetLeadingTrivia())
+            SyntaxTriviaList leadingTrivia = node.GetLeadingTrivia();
+
+            SyntaxTrivia? lastTrivia = leadingTrivia.Count > 0 ? leadingTrivia.Last(x => x.IsKind(SyntaxKind.WhitespaceTrivia)) : null;
+            for (int index = 0; index < leadingTrivia.Count; index++)
             {
-                if (!trivia.HasStructure)
+                SyntaxTrivia originalTrivia = leadingTrivia[index];
+
+                if (index == leadingTrivia.Count - 1)
                 {
-                    updatedLeadingTrivia.Add(trivia);
+                    break;
+                }
+
+                if (!originalTrivia.HasStructure)
+                {
+                    updatedLeadingTrivia.Add(originalTrivia);
                     continue;
                 }
 
-                SyntaxNode? structuredTrivia = trivia.GetStructure();
+                SyntaxNode? structuredTrivia = originalTrivia.GetStructure();
                 Debug.Assert(structuredTrivia != null);
 
                 if (!structuredTrivia.IsKind(SyntaxKind.SingleLineDocumentationCommentTrivia))
                 {
-                    updatedLeadingTrivia.Add(trivia);
+                    updatedLeadingTrivia.Add(originalTrivia);
                     continue;
                 }
 
-                if (structuredTrivia is DocumentationCommentTriviaSyntax documentationCommentTrivia)
+                DocumentationCommentTriviaSyntax documentationCommentTrivia = (DocumentationCommentTriviaSyntax)structuredTrivia;
+
+                SyntaxList<SyntaxNode> updatedNodeList = GetUpdatedXmlElements(documentationCommentTrivia.Content, api, DocsComments.Config.SkipRemarks, lastTrivia.Value);
+                if (updatedNodeList.Any())
                 {
-                    List<SyntaxNode> updatedNodeList = GetUpdatedXmlElements(documentationCommentTrivia.Content, api, DocsComments.Config.SkipRemarks);
+                    DocumentationCommentTriviaSyntax updatedDocComments = SyntaxFactory.DocumentationCommentTrivia(
+                        SyntaxKind.SingleLineDocumentationCommentTrivia,
+                        (SyntaxList<XmlNodeSyntax>)SyntaxFactory.List(updatedNodeList));
 
-                    DocumentationCommentTriviaSyntax newDocComments = DocumentationCommentTriviaWithUpdatedContent(
-                        documentationCommentTrivia.Kind(), updatedNodeList, documentationCommentTrivia.EndOfComment);
-
-                    newDocComments = newDocComments
+                    updatedDocComments = updatedDocComments
                         .WithLeadingTrivia(structuredTrivia.GetLeadingTrivia())
                         .WithTrailingTrivia(structuredTrivia.GetTrailingTrivia());
 
-                    SyntaxTrivia newTrivia = SyntaxFactory.Trivia(newDocComments);
-                    updatedLeadingTrivia.Add(newTrivia);
-
-                    replacedExisting = true;
+                    SyntaxTrivia updatedTrivia = SyntaxFactory.Trivia(updatedDocComments);
+                    updatedLeadingTrivia.Add(updatedTrivia);
+                    replacedExisting = false;
                 }
                 else
                 {
-                    throw new NotSupportedException($"Unsupported trivia kind: {trivia.Kind()}");
+                    SyntaxTrivia updatedTrivia = CreateXmlFromScratch(api, lastTrivia.Value);
+                    updatedLeadingTrivia.Add(updatedTrivia);
+                    replacedExisting = true;
                 }
             }
 
@@ -313,100 +349,130 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             // So need to build it from scratch
             if (!replacedExisting)
             {
+                SyntaxTrivia newTrivia = CreateXmlFromScratch(api, lastTrivia.Value);
+                updatedLeadingTrivia.Add(newTrivia);
+            }
+
+            // The last trivia is the spacing before the actual node (usually before the visibility keyword)
+            // must be replaced in its original location
+            if (lastTrivia != null)
+            {
+                updatedLeadingTrivia.Add(lastTrivia.Value);
             }
 
             return node.WithLeadingTrivia(updatedLeadingTrivia);
         }
 
-        // This exists in SyntaxGenerator in dotnet/roslyn but it's not accessible.
-        private DocumentationCommentTriviaSyntax DocumentationCommentTriviaWithUpdatedContent(SyntaxKind documentationCommentTriviaKind, IEnumerable<SyntaxNode> content, SyntaxToken documentationCommentTriviaEndOfComment)
+        private SyntaxTrivia CreateXmlFromScratch(IDocsAPI api, SyntaxTrivia lastTrivia)
         {
-            return SyntaxFactory.DocumentationCommentTrivia(
-                documentationCommentTriviaKind,
-                (SyntaxList<XmlNodeSyntax>)SyntaxFactory.List(content),
-                documentationCommentTriviaEndOfComment);
+            // TODO: Add all the empty items needed for this API and wrap them in their expected greater items
+            SyntaxList<SyntaxNode> newNodeList = GetUpdatedXmlElements(SyntaxFactory.List<XmlNodeSyntax>(), api, DocsComments.Config.SkipRemarks, lastTrivia);
+
+            DocumentationCommentTriviaSyntax newDocComments = SyntaxFactory.DocumentationCommentTrivia(SyntaxKind.SingleLineDocumentationCommentTrivia, newNodeList);
+
+            return SyntaxFactory.Trivia(newDocComments);
         }
 
-
-        internal List<SyntaxNode> GetUpdatedXmlElements(SyntaxList<XmlNodeSyntax> originalXmls, IDocsAPI api, bool skipRemarks)
+        internal SyntaxList<SyntaxNode> GetUpdatedXmlElements(SyntaxList<XmlNodeSyntax> originalXmls, IDocsAPI api, bool skipRemarks, SyntaxTrivia lastTrivia)
         {
             List<SyntaxNode> updated = new();
 
             // Summary is in all api kinds
-            XmlNodeSyntax summaryNode = GetOrCreateXmlNode(originalXmls, "summary", api.Summary);
-            updated.Add(summaryNode);
+            List<XmlNodeSyntax> summaryNode = GetOrCreateXmlNode(originalXmls, "summary", api.Summary, lastTrivia, isFirst: true, isLast: false);
+            updated.AddRange(summaryNode);
 
-            if (api.ReturnType is not "" and not "System.Void")
+            // Summary can be in delegates (which are types) and is also in methods and properties
+            if (api.ReturnType != string.Empty && api.ReturnType != "System.Void")
             {
-                XmlNodeSyntax returnsNode = GetOrCreateXmlNode(originalXmls, "returns", api.Returns);
-                updated.Add(returnsNode);
+                List<XmlNodeSyntax> returnsNode = GetOrCreateXmlNode(originalXmls, "returns", api.Returns, lastTrivia);
+                updated.AddRange(returnsNode);
             }
 
             if (!skipRemarks)
             {
-                XmlNodeSyntax remarksNode = GetOrCreateXmlNode(originalXmls, "remarks", api.Remarks);
-                updated.Add(remarksNode);
+                List<XmlNodeSyntax> remarksNode = GetOrCreateXmlNode(originalXmls, "remarks", api.Remarks, lastTrivia, isLast: true);
+                updated.AddRange(remarksNode);
+
             }
 
-            return updated;
-
-            // Find summary xml among existing triple slash, if found
-            //    check if you have a Summary string. If you do, override the found summary xml text
-            //    then re-add the (maybe updated) summary xml
-            // if not found, add an empty one.
-
-            // Then depending on the API type, do the same for the other items in the expected order
-
-            // For optional items, backport them only if they are relevant to the developer
-            // Say you want to backport relateds (maybe not relevant), so see if you have a related xml among existing triple slash, if found
-            //    check if you have a Related string. If you do, override the found related xml text
-            //    if not found, add a new related xml text with the Related string
-            // then add (or re-add) the related xml
-
-            // Do the same with remarks as you did with summary but only if Config says you can
-
-            //SyntaxTrivia trivia = node.GetLeadingTrivia().SingleOrDefault(t => t.HasStructure);
-
-            //List<XmlNodeSyntax> content = new();
-
-            //SyntaxToken summaryLiteral = SyntaxFactory.XmlTextLiteral("I am the summary");
-            //XmlTextSyntax summaryText = SyntaxFactory.XmlText(summaryLiteral);
-            //XmlElementSyntax summary = SyntaxFactory.XmlSummaryElement(summaryText);
-            //content.Add(summary);
-
-            //SyntaxToken remarksLiteral = SyntaxFactory.XmlTextLiteral("I am the remarks");
-            //XmlTextSyntax remarksText = SyntaxFactory.XmlText(remarksLiteral);
-            //XmlElementSyntax remarks = SyntaxFactory.XmlRemarksElement(remarksText);
-            //content.Add(remarks);
-
-            //return newNode;
+            return new SyntaxList<SyntaxNode>(updated);
         }
 
-        private XmlNodeSyntax GetOrCreateXmlNode(SyntaxList<XmlNodeSyntax> originalXmls, string tagName, string apiDocsText)
+        private List<XmlNodeSyntax> GetOrCreateXmlNode(SyntaxList<XmlNodeSyntax> originalXmls, string tagName, string apiDocsText, SyntaxTrivia lastTrivia, bool isFirst = false, bool isLast = false)
         {
-            if (!apiDocsText.IsDocsEmpty())
+            SyntaxTokenList tokenList;
+            if (apiDocsText.IsDocsEmpty())
             {
                 // Override with api docs text
-                return CreateXmlNode(tagName, apiDocsText);
+                tokenList = SyntaxFactory.TokenList(SyntaxFactory.ParseToken(apiDocsText));
+            }
+            else
+            {
+
+                // Try to get existing one, or if not found, create an empty one
+                XmlNodeSyntax? xmlNode = originalXmls.FirstOrDefault(xmlNode => DoesNodeHasTag(xmlNode, tagName));
+
+                if (xmlNode == null)
+                {
+                    tokenList = SyntaxFactory.TokenList();
+                }
+                else
+                {
+                    XmlElementSyntax xmlElement = (XmlElementSyntax)xmlNode;
+                    XmlTextSyntax xmlText = (XmlTextSyntax)xmlElement.Content.Single();
+                    tokenList = xmlText.TextTokens;
+                }
             }
 
-            // Try to get existing one, or if not found, create an empty one
-            return originalXmls.FirstOrDefault(xmlNode => DoesNodeHasTag(xmlNode, tagName)) ??
-                   CreateXmlNode(tagName, string.Empty);
+            List<XmlNodeSyntax> list = new();
+
+            if (isFirst)
+            {
+                list.Add(GetPrefixTokens(lastTrivia));
+            }
+
+            list.Add(CreateXmlNode(tagName, tokenList));
+
+            list.Add(GetSuffixTokens(lastTrivia, isLast));
+
+            return list;
         }
 
-        private XmlNodeSyntax CreateXmlNode(string tagName, string text)
+        private SyntaxToken GetXmlTripleSlash(SyntaxTrivia lastTrivia)
+        {
+            return SyntaxFactory.XmlTextLiteral(
+                        leading: SyntaxFactory.TriviaList(lastTrivia, SyntaxFactory.DocumentationCommentExterior("///")),
+                        text: " ",
+                        value: " ",
+                        trailing: SyntaxFactory.TriviaList());
+        }
+
+        private XmlNodeSyntax GetPrefixTokens(SyntaxTrivia lastTrivia) => SyntaxFactory.XmlText().WithTextTokens(SyntaxFactory.TokenList(GetXmlTripleSlash(lastTrivia)));
+
+        private XmlNodeSyntax GetSuffixTokens(SyntaxTrivia lastTrivia, bool isLast)
+        {
+            List<SyntaxToken> tokens = new()
+            {
+                SyntaxFactory.XmlTextNewLine(
+                                    leading: SyntaxFactory.TriviaList(),
+                                    text: "\n",
+                                    value: "\n",
+                                    trailing: SyntaxFactory.TriviaList())
+            };
+            if (!isLast)
+            {
+                tokens.Add(GetXmlTripleSlash(lastTrivia));
+            }
+
+            return SyntaxFactory.XmlText().WithTextTokens(SyntaxFactory.TokenList(tokens));
+        }
+
+        private XmlNodeSyntax CreateXmlNode(string tagName, SyntaxTokenList tokenList)
         {
             return SyntaxFactory.XmlExampleElement(
                         SyntaxFactory.SingletonList<XmlNodeSyntax>(
                             SyntaxFactory.XmlText()
-                            .WithTextTokens(
-                                SyntaxFactory.TokenList(
-                                    SyntaxFactory.XmlTextLiteral(
-                                        SyntaxFactory.TriviaList(),
-                                        text,
-                                        text,
-                                        SyntaxFactory.TriviaList())))))
+                            .WithTextTokens(tokenList)))
                         .WithStartTag(
                         SyntaxFactory.XmlElementStartTag(
                             SyntaxFactory.XmlName(
@@ -421,8 +487,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
         {
             return xmlNode.Kind() is SyntaxKind.XmlElement &&
             xmlNode is XmlElementSyntax xmlElement &&
-            xmlElement.StartTag.Name is XmlNameSyntax xmlName &&
-            xmlName.LocalName.ValueText == tagName;
+            xmlElement.StartTag.Name.LocalName.ValueText == tagName;
         }
     }
 }
