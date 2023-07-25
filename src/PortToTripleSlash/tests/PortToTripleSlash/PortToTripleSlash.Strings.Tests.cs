@@ -1378,14 +1378,14 @@ GetRemarks(skipRemarks, "MyClass.MyVoidMethod", "    ") +
 }";
 
         string expectedCode = @"namespace MyNamespace {
-  /// <summary>New MyClass type summary.</summary>
-  /// <remarks>Unreplaceable MyClass type remarks.</remarks>
-  public class MyClass
-  {
+    /// <summary>New MyClass type summary.</summary>
+    /// <remarks>Unreplaceable MyClass type remarks.</remarks>
+    public class MyClass
+    {
       /// <summary>Unreplaceable MyClass constructor summary.</summary>
       /// <remarks>New MyClass constructor remarks.</remarks>
       public MyClass() { }
-  }
+    }
 }";
 
         List<string> docFiles = new() { docFile };

@@ -351,6 +351,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
                 if (index == leadingTrivia.Count - 1)
                 {
+                    // Skip the last one because it will be added at the end
                     break;
                 }
 
@@ -372,24 +373,20 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
                 DocumentationCommentTriviaSyntax documentationCommentTrivia = (DocumentationCommentTriviaSyntax)structuredTrivia;
 
                 SyntaxList<SyntaxNode> updatedNodeList = GetUpdatedXmlElements(documentationCommentTrivia.Content, api, indentationTrivia, DocsComments.Config.SkipRemarks);
+
                 if (updatedNodeList.Any())
                 {
                     DocumentationCommentTriviaSyntax updatedDocComments = SyntaxFactory.DocumentationCommentTrivia(
                         SyntaxKind.SingleLineDocumentationCommentTrivia,
                         (SyntaxList<XmlNodeSyntax>)SyntaxFactory.List(updatedNodeList));
 
-                    updatedDocComments = updatedDocComments
-                        .WithLeadingTrivia(structuredTrivia.GetLeadingTrivia())
-                        .WithTrailingTrivia(structuredTrivia.GetTrailingTrivia());
-
-                    SyntaxTrivia updatedTrivia = SyntaxFactory.Trivia(updatedDocComments);
-                    updatedLeadingTrivia.Add(updatedTrivia);
+                    updatedLeadingTrivia.Add(SyntaxFactory.Trivia(updatedDocComments));
                 }
                 else
                 {
-                    SyntaxTrivia updatedTrivia = CreateXmlFromScratch(api, indentationTrivia);
-                    updatedLeadingTrivia.Add(updatedTrivia);
+                    updatedLeadingTrivia.Add(CreateXmlSectionFromScratch(api, indentationTrivia));
                 }
+
                 replacedExisting = true;
             }
 
@@ -397,8 +394,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             // So need to build it from scratch
             if (!replacedExisting)
             {
-                SyntaxTrivia newTrivia = CreateXmlFromScratch(api, indentationTrivia);
-                updatedLeadingTrivia.Add(newTrivia);
+                updatedLeadingTrivia.Add(CreateXmlSectionFromScratch(api, indentationTrivia));
             }
 
             // The last trivia is the spacing before the actual node (usually before the visibility keyword)
@@ -411,7 +407,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             return node.WithLeadingTrivia(updatedLeadingTrivia);
         }
 
-        private SyntaxTrivia CreateXmlFromScratch(IDocsAPI api, SyntaxTrivia? indentationTrivia)
+        private SyntaxTrivia CreateXmlSectionFromScratch(IDocsAPI api, SyntaxTrivia? indentationTrivia)
         {
             // TODO: Add all the empty items needed for this API and wrap them in their expected greater items
             SyntaxList<SyntaxNode> newNodeList = GetUpdatedXmlElements(SyntaxFactory.List<XmlNodeSyntax>(), api, indentationTrivia, DocsComments.Config.SkipRemarks);
