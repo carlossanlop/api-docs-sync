@@ -1320,13 +1320,13 @@ GetRemarks(skipRemarks, "MyClass.MyVoidMethod", "    ") +
 {
     // Comment on top of type
     /// <summary>This is the MyClass type summary.</summary>" +
-    GetRemarks(skipRemarks, "MyClass type") +
-    @"public class MyClass
+    GetRemarks(skipRemarks, "MyClass type", "    ") +
+@"    public class MyClass
     {
         // Comment on top of constructor
         /// <summary>This is the MyClass constructor summary.</summary>" +
-    GetRemarks(skipRemarks, "MyClass constructor", "    ") +
-    @"    public MyClass() { }
+    GetRemarks(skipRemarks, "MyClass constructor", "        ") +
+@"        public MyClass() { }
     }
 }";
 
@@ -2003,8 +2003,8 @@ public interface MyInterface
             Assert.True(symbolLocations.Any(), $"No symbol locations found for {resultDocId}.");
             foreach (ResolvedLocation location in symbolLocations)
             {
-                string newNode = location.NewNode.ToFullString();
-                Assert.Equal(expectedCode, newNode);
+                string actualCode = location.NewNode.ToFullString();
+                Assert.Equal(expectedCode, actualCode);
             }
         }
     }

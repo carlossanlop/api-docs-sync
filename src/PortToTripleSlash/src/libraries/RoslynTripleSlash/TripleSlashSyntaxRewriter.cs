@@ -15,6 +15,7 @@ using Microsoft.CodeAnalysis.Editing;
 using System.Reflection.Metadata;
 using System.Xml;
 using System.Xml.Linq;
+using System.Collections;
 
 /*
  * According to the Roslyn Quoter: https://roslynquoter.azurewebsites.net/
@@ -156,6 +157,18 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 {
     internal class TripleSlashSyntaxRewriter : CSharpSyntaxRewriter
     {
+        private const string SummaryTag = "summary";
+        private const string ValueTag = "value";
+        private const string TypeParamTag = "typeparam";
+        private const string ParamTag = "param";
+        private const string ReturnsTag = "returns";
+        private const string RemarksTag = "remarks";
+        private const string ExceptionTag = "exception";
+        private const string NameAttributeName = "name";
+        private const string CrefAttributeName = "cref";
+        private const string TripleSlash = "///";
+        private const string Space = " ";
+
         private DocsCommentsContainer DocsComments { get; }
         private ResolvedLocation Location { get; }
         private SemanticModel Model => Location.Model;
@@ -166,12 +179,10 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             Location = resolvedLocation;
         }
 
-        // TYPE VISITORS
-
         public override SyntaxNode? VisitClassDeclaration(ClassDeclarationSyntax node) => VisitType(node, base.VisitClassDeclaration(node));
 
         public override SyntaxNode? VisitDelegateDeclaration(DelegateDeclarationSyntax node) => VisitType(node, base.VisitDelegateDeclaration(node));
-        private SyntaxNode? VisitType(DelegateDeclarationSyntax node) => throw new NotImplementedException();
+
         public override SyntaxNode? VisitEnumDeclaration(EnumDeclarationSyntax node) => VisitType(node, base.VisitEnumDeclaration(node));
 
         public override SyntaxNode? VisitInterfaceDeclaration(InterfaceDeclarationSyntax node) => VisitType(node, base.VisitInterfaceDeclaration(node));
@@ -180,13 +191,9 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
         public override SyntaxNode? VisitStructDeclaration(StructDeclarationSyntax node) => VisitType(node, base.VisitStructDeclaration(node));
 
-        // VARIABLE VISITORS
-
         public override SyntaxNode? VisitEventFieldDeclaration(EventFieldDeclarationSyntax node) => VisitVariableDeclaration(node, base.VisitEventFieldDeclaration(node));
 
         public override SyntaxNode? VisitFieldDeclaration(FieldDeclarationSyntax node) => VisitVariableDeclaration(node, base.VisitFieldDeclaration(node));
-
-        // METHOD VISITORS
 
         public override SyntaxNode? VisitConstructorDeclaration(ConstructorDeclarationSyntax node) => VisitBaseMethodDeclaration(node, base.VisitConstructorDeclaration(node));
 
@@ -200,13 +207,9 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
         public override SyntaxNode? VisitOperatorDeclaration(OperatorDeclarationSyntax node) => VisitBaseMethodDeclaration(node, base.VisitOperatorDeclaration(node));
 
-        // OTHER VISITORS
-
         public override SyntaxNode? VisitEnumMemberDeclaration(EnumMemberDeclarationSyntax node) => VisitMemberDeclaration(node, base.VisitEnumMemberDeclaration(node));
 
         public override SyntaxNode? VisitPropertyDeclaration(PropertyDeclarationSyntax node) => VisitBasePropertyDeclaration(node, base.VisitPropertyDeclaration(node));
-
-        // THESE DO ACTUAL WORK
 
         private SyntaxNode? VisitType(SyntaxNode originalNode, SyntaxNode? baseNode)
         {
@@ -237,7 +240,6 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             return Generate(baseNode, member);
         }
 
-        // These nodes never have remarks
         private SyntaxNode? VisitMemberDeclaration(SyntaxNode originalNode, SyntaxNode? baseNode)
         {
             if (!TryGetMember(originalNode, out DocsMember? member) || baseNode == null)
@@ -270,8 +272,6 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
             return baseNode;
         }
-
-        // API DOCS RETRIEVAL METHODS
 
         private bool TryGetMember(SyntaxNode originalNode, [NotNullWhen(returnValue: true)] out DocsMember? member)
         {
@@ -334,7 +334,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             bool replacedExisting = false;
             SyntaxTriviaList leadingTrivia = node.GetLeadingTrivia();
 
-            SyntaxTrivia? lastTrivia = leadingTrivia.Count > 0 ? leadingTrivia.Last(x => x.IsKind(SyntaxKind.WhitespaceTrivia)) : null;
+            SyntaxTrivia? indentationTrivia = leadingTrivia.Count > 0 ? leadingTrivia.Last(x => x.IsKind(SyntaxKind.WhitespaceTrivia)) : null;
             for (int index = 0; index < leadingTrivia.Count; index++)
             {
                 SyntaxTrivia originalTrivia = leadingTrivia[index];
@@ -361,7 +361,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
                 DocumentationCommentTriviaSyntax documentationCommentTrivia = (DocumentationCommentTriviaSyntax)structuredTrivia;
 
-                SyntaxList<SyntaxNode> updatedNodeList = GetUpdatedXmlElements(documentationCommentTrivia.Content, api, DocsComments.Config.SkipRemarks, lastTrivia);
+                SyntaxList<SyntaxNode> updatedNodeList = GetUpdatedXmlElements(documentationCommentTrivia.Content, api, indentationTrivia, DocsComments.Config.SkipRemarks);
                 if (updatedNodeList.Any())
                 {
                     DocumentationCommentTriviaSyntax updatedDocComments = SyntaxFactory.DocumentationCommentTrivia(
@@ -377,7 +377,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
                 }
                 else
                 {
-                    SyntaxTrivia updatedTrivia = CreateXmlFromScratch(api, lastTrivia);
+                    SyntaxTrivia updatedTrivia = CreateXmlFromScratch(api, indentationTrivia);
                     updatedLeadingTrivia.Add(updatedTrivia);
                 }
                 replacedExisting = true;
@@ -387,87 +387,103 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             // So need to build it from scratch
             if (!replacedExisting)
             {
-                SyntaxTrivia newTrivia = CreateXmlFromScratch(api, lastTrivia);
+                SyntaxTrivia newTrivia = CreateXmlFromScratch(api, indentationTrivia);
                 updatedLeadingTrivia.Add(newTrivia);
             }
 
             // The last trivia is the spacing before the actual node (usually before the visibility keyword)
             // must be replaced in its original location
-            if (lastTrivia != null)
+            if (indentationTrivia != null)
             {
-                updatedLeadingTrivia.Add(lastTrivia.Value);
+                updatedLeadingTrivia.Add(indentationTrivia.Value);
             }
 
             return node.WithLeadingTrivia(updatedLeadingTrivia);
         }
 
-        private SyntaxTrivia CreateXmlFromScratch(IDocsAPI api, SyntaxTrivia? lastTrivia)
+        private SyntaxTrivia CreateXmlFromScratch(IDocsAPI api, SyntaxTrivia? indentationTrivia)
         {
             // TODO: Add all the empty items needed for this API and wrap them in their expected greater items
-            SyntaxList<SyntaxNode> newNodeList = GetUpdatedXmlElements(SyntaxFactory.List<XmlNodeSyntax>(), api, DocsComments.Config.SkipRemarks, lastTrivia);
+            SyntaxList<SyntaxNode> newNodeList = GetUpdatedXmlElements(SyntaxFactory.List<XmlNodeSyntax>(), api, indentationTrivia, DocsComments.Config.SkipRemarks);
 
             DocumentationCommentTriviaSyntax newDocComments = SyntaxFactory.DocumentationCommentTrivia(SyntaxKind.SingleLineDocumentationCommentTrivia, newNodeList);
 
             return SyntaxFactory.Trivia(newDocComments);
         }
 
-        private const string SummaryStr = "summary";
-        private const string ValueStr = "value";
-        private const string TypeParamStr = "typeparam";
-        private const string ParamStr = "param";
-        private const string ReturnsStr = "returns";
-        private const string RemarksStr = "remarks";
-        private const string ExceptionStr = "exception";
-        private const string SystemVoid = "System.Void";
-        private const string NameStr = "name";
-        private const string CrefStr = "cref";
-        internal SyntaxList<SyntaxNode> GetUpdatedXmlElements(SyntaxList<XmlNodeSyntax> originalXmls, IDocsAPI api, bool skipRemarks, SyntaxTrivia? lastTrivia)
+        internal SyntaxList<SyntaxNode> GetUpdatedXmlElements(
+            SyntaxList<XmlNodeSyntax> originalXmls, IDocsAPI api, SyntaxTrivia? indentationTrivia, bool skipRemarks)
         {
             List<SyntaxNode> updated = new();
 
-            // Summary is in all api kinds
-            TryGetOrCreateXmlNode(originalXmls, updated, SummaryStr, api.Summary, lastTrivia, isFirst: true);
+            if(TryGetOrCreateXmlNode(originalXmls, SummaryTag, api.Summary, attributeName: null, attributeValue: null, out XmlNodeSyntax? summaryNode))
+            {
+                updated.AddRange(GetXmlRow(summaryNode, indentationTrivia));
+            }
 
-            // Value is always second and only shows up in properties
-            TryGetOrCreateXmlNode(originalXmls, updated, ValueStr, api.Value, lastTrivia);
+           if (TryGetOrCreateXmlNode(originalXmls, ValueTag, api.Value, attributeName: null, attributeValue: null, out XmlNodeSyntax? valueNode))
+            {
+                updated.AddRange(GetXmlRow(valueNode, indentationTrivia));
+            }
 
             foreach (DocsTypeParam typeParam in api.TypeParams)
             {
-                TryGetOrCreateXmlNode(originalXmls, updated, TypeParamStr, typeParam.Value, lastTrivia, attributeName: NameStr, attributeValue: typeParam.Name);
+                if (TryGetOrCreateXmlNode(originalXmls, TypeParamTag, typeParam.Value, attributeName: NameAttributeName, attributeValue: typeParam.Name,  out XmlNodeSyntax? typeParamNode))
+                {
+                    updated.AddRange(GetXmlRow(typeParamNode, indentationTrivia));
+                }
             }
 
             foreach (DocsParam param in api.Params)
             {
-                TryGetOrCreateXmlNode(originalXmls, updated, ParamStr, param.Value, lastTrivia, attributeName: NameStr, attributeValue: param.Name);
+                if (TryGetOrCreateXmlNode(originalXmls, ParamTag, param.Value, attributeName: NameAttributeName, attributeValue: param.Name, out XmlNodeSyntax? paramNode))
+                {
+                    updated.AddRange(GetXmlRow(paramNode, indentationTrivia));
+                }
             }
 
-            // Returns can be in delegates (which are types) and is also in methods and properties
-            if (api.ReturnType != string.Empty && api.ReturnType != SystemVoid)
+            if (TryGetOrCreateXmlNode(originalXmls, ReturnsTag, api.Returns, attributeName: null, attributeValue: null, out XmlNodeSyntax? returnsNode))
             {
-                TryGetOrCreateXmlNode(originalXmls, updated, ReturnsStr, api.Returns, lastTrivia);
+                updated.AddRange(GetXmlRow(returnsNode, indentationTrivia));
             }
 
             foreach (DocsException exception in api.Exceptions)
             {
-                TryGetOrCreateXmlNode(originalXmls, updated, ExceptionStr, exception.Value, lastTrivia, attributeName: CrefStr, attributeValue: exception.Cref);
+                if (TryGetOrCreateXmlNode(originalXmls, ExceptionTag, exception.Value, attributeName: CrefAttributeName, attributeValue: exception.Cref, out XmlNodeSyntax? exceptionNode))
+                {
+                    updated.AddRange(GetXmlRow(exceptionNode, indentationTrivia));
+                }
             }
 
-            if (!skipRemarks)
+            if (!skipRemarks && TryGetOrCreateXmlNode(originalXmls, RemarksTag, api.Remarks, attributeName: null, attributeValue: null, out XmlNodeSyntax? remarksNode))
             {
-                TryGetOrCreateXmlNode(originalXmls, updated, RemarksStr, api.Remarks, lastTrivia, isLast: true);
+                updated.AddRange(GetXmlRow(remarksNode, indentationTrivia));
             }
 
             return new SyntaxList<SyntaxNode>(updated);
         }
 
-        private bool TryGetOrCreateXmlNode(SyntaxList<XmlNodeSyntax> originalXmls, List<SyntaxNode> updatedXmls,
-            string tagName, string apiDocsText, SyntaxTrivia? lastTrivia, string? attributeName = null, string? attributeValue = null, bool isFirst = false, bool isLast = false)
+        private IEnumerable<XmlNodeSyntax> GetXmlRow(XmlNodeSyntax item, SyntaxTrivia? indentationTrivia)
+        {
+            yield return GetIndentationNode(indentationTrivia);
+            yield return GetTripleSlashNode();
+            yield return item;
+            yield return GetNewLineNode();
+        }
+
+        private bool TryGetOrCreateXmlNode(SyntaxList<XmlNodeSyntax> originalXmls, string tagName, string apiDocsText,
+            string? attributeName, string? attributeValue, [NotNullWhen(returnValue: true)] out XmlNodeSyntax? node)
         {
             SyntaxTokenList textLiteralTokenList;
             if (!apiDocsText.IsDocsEmpty())
             {
                 // Overwrite the current triple slash with the text that comes from api docs
-                SyntaxToken textLiteral = SyntaxFactory.XmlTextLiteral(leading: SyntaxFactory.TriviaList(), text: apiDocsText, value: apiDocsText, trailing: SyntaxFactory.TriviaList());
+                SyntaxToken textLiteral = SyntaxFactory.XmlTextLiteral(
+                    leading: SyntaxFactory.TriviaList(),
+                    text: apiDocsText,
+                    value: apiDocsText,
+                    trailing: SyntaxFactory.TriviaList());
+
                 textLiteralTokenList = SyntaxFactory.TokenList(textLiteral);
             }
             else
@@ -484,59 +500,55 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
                 else
                 {
                     // We don't want to add an empty xml item. We want it to be missing so the developer sees the compilation error and adds it.
+                    node = null;
                     return false;
                 }
             }
 
-            List<XmlNodeSyntax> xmlNodeList = new();
-
-            if (isFirst)
-            {
-                xmlNodeList.Add(GetPrefixTokens(lastTrivia));
-            }
-            xmlNodeList.Add(CreateXmlNode(tagName, textLiteralTokenList, attributeName, attributeValue));
-            xmlNodeList.Add(GetSuffixTokens(lastTrivia, isLast));
-
-            updatedXmls.AddRange(xmlNodeList);
-
+            node = CreateXmlNode(tagName, textLiteralTokenList, attributeName, attributeValue);
             return true;
         }
 
-        private const string TripleSlash = "///";
-        private const string Space = " ";
-        private SyntaxToken GetXmlTripleSlash(SyntaxTrivia? lastTrivia)
+        private XmlNodeSyntax GetTripleSlashNode()
         {
-            List<SyntaxTrivia> triviaList = new();
-            if (lastTrivia != null)
-            {
-                triviaList.Add(lastTrivia.Value);
-            }
-            triviaList.Add(SyntaxFactory.DocumentationCommentExterior(TripleSlash));
-
-            return SyntaxFactory.XmlTextLiteral(
-                        leading: SyntaxFactory.TriviaList(triviaList),
+            SyntaxToken token = SyntaxFactory.XmlTextLiteral(
+                        leading: SyntaxFactory.TriviaList(SyntaxFactory.DocumentationCommentExterior(TripleSlash)),
                         text: Space,
                         value: Space,
                         trailing: SyntaxFactory.TriviaList());
+
+            return SyntaxFactory.XmlText().WithTextTokens(SyntaxFactory.TokenList(token));
         }
 
-        private XmlNodeSyntax GetPrefixTokens(SyntaxTrivia? lastTrivia) => SyntaxFactory.XmlText().WithTextTokens(SyntaxFactory.TokenList(GetXmlTripleSlash(lastTrivia)));
+        private XmlNodeSyntax GetIndentationNode(SyntaxTrivia? indentationTrivia)
+        {
+            List<SyntaxTrivia> triviaList = new();
 
-        private const string NewLine = "\n";
-        private XmlNodeSyntax GetSuffixTokens(SyntaxTrivia? lastTrivia, bool isLast)
+            if (indentationTrivia != null)
+            {
+                triviaList.Add(indentationTrivia.Value);
+            }
+
+            var token = SyntaxFactory.XmlTextLiteral(
+                        leading: SyntaxFactory.TriviaList(triviaList),
+                        text: string.Empty,
+                        value: string.Empty,
+                        trailing: SyntaxFactory.TriviaList());
+
+            return SyntaxFactory.XmlText().WithTextTokens(SyntaxFactory.TokenList(token));
+
+        }
+
+        private XmlNodeSyntax GetNewLineNode()
         {
             List<SyntaxToken> tokens = new()
             {
                 SyntaxFactory.XmlTextNewLine(
                                     leading: SyntaxFactory.TriviaList(),
-                                    text: NewLine,
-                                    value: NewLine,
+                                    text: Environment.NewLine,
+                                    value: Environment.NewLine,
                                     trailing: SyntaxFactory.TriviaList())
             };
-            if (!isLast)
-            {
-                tokens.Add(GetXmlTripleSlash(lastTrivia));
-            }
 
             return SyntaxFactory.XmlText().WithTextTokens(SyntaxFactory.TokenList(tokens));
         }
@@ -567,7 +579,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
         private bool DoesNodeHasTag(SyntaxNode xmlNode, string tagName)
         {
-            if (tagName == ExceptionStr)
+            if (tagName == ExceptionTag)
             {
                 // Temporary workaround to avoid overwriting all existing triple slash exceptions
                 return false;
