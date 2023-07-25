@@ -168,6 +168,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
         private const string CrefAttributeName = "cref";
         private const string TripleSlash = "///";
         private const string Space = " ";
+        private const string NewLine = "\n";
 
         private DocsCommentsContainer DocsComments { get; }
         private ResolvedLocation Location { get; }
@@ -251,38 +252,47 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
         private SyntaxNode? VisitVariableDeclaration(SyntaxNode originalNode, SyntaxNode? baseNode)
         {
-            if (baseNode == null || originalNode is not BaseFieldDeclarationSyntax originalFieldDeclaration)
+            if (!TryGetMember(originalNode, out DocsMember? member) || baseNode == null)
             {
                 return originalNode;
             }
 
-            // The comments need to be extracted from the underlying variable declarator inside the declaration
-            VariableDeclarationSyntax declaration = originalFieldDeclaration.Declaration;
-
-            // Only port docs if there is only one variable in the declaration
-            if (declaration.Variables.Count == 1)
-            {
-                if (!TryGetMember(declaration.Variables.First(), out DocsMember? member))
-                {
-                    return baseNode;
-                }
-
-                return Generate(baseNode, member);
-            }
-
-            return baseNode;
+            return Generate(baseNode, member);
         }
 
         private bool TryGetMember(SyntaxNode originalNode, [NotNullWhen(returnValue: true)] out DocsMember? member)
         {
             member = null;
 
-            if (!IsPublic(originalNode))
+            SyntaxNode nodeWithSymbol;
+            if (originalNode is BaseFieldDeclarationSyntax fieldDecl)
             {
-                return false;
-            }
+                if (!IsPublic(fieldDecl))
+                {
+                    return false;
+                }
 
-            if (Model.GetDeclaredSymbol(originalNode) is ISymbol symbol)
+                VariableDeclarationSyntax variableDecl = fieldDecl.Declaration;
+                if (variableDecl.Variables.Count != 1) // TODO: Add test
+                {
+                    // Only port docs if there is only one variable in the declaration
+                    return false;
+                }
+
+                nodeWithSymbol = variableDecl.Variables.First();
+            }
+            else
+            {
+                if (!IsPublic(originalNode))
+                {
+                    return false;
+                }
+
+                nodeWithSymbol = originalNode;
+            }
+            
+
+            if (Model.GetDeclaredSymbol(nodeWithSymbol) is ISymbol symbol)
             {
                 string? docId = symbol.GetDocumentationCommentId();
                 if (!string.IsNullOrWhiteSpace(docId))
@@ -449,7 +459,7 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
             foreach (DocsException exception in api.Exceptions)
             {
-                if (TryGetOrCreateXmlNode(originalXmls, ExceptionTag, exception.Value, attributeName: CrefAttributeName, attributeValue: exception.Cref, out XmlNodeSyntax? exceptionNode))
+                if (TryGetOrCreateXmlNode(originalXmls, ExceptionTag, exception.Value, attributeName: CrefAttributeName, attributeValue: exception.Cref[2..], out XmlNodeSyntax? exceptionNode))
                 {
                     updated.AddRange(GetXmlRow(exceptionNode, indentationTrivia));
                 }
@@ -545,8 +555,8 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
             {
                 SyntaxFactory.XmlTextNewLine(
                                     leading: SyntaxFactory.TriviaList(),
-                                    text: Environment.NewLine,
-                                    value: Environment.NewLine,
+                                    text: NewLine,
+                                    value: NewLine,
                                     trailing: SyntaxFactory.TriviaList())
             };
 
@@ -561,10 +571,17 @@ namespace ApiDocsSync.PortToTripleSlash.Roslyn
 
             if (!string.IsNullOrWhiteSpace(attributeName) && !string.IsNullOrWhiteSpace(attributeValue))
             {
-                XmlNameAttributeSyntax xmlAttribute = SyntaxFactory.XmlNameAttribute(SyntaxFactory.XmlName(SyntaxFactory.Identifier(attributeName)),
-                                                                  SyntaxFactory.Token(SyntaxKind.DoubleQuoteToken),
-                                                                  SyntaxFactory.IdentifierName(attributeValue),
-                                                                  SyntaxFactory.Token(SyntaxKind.DoubleQuoteToken));
+                SyntaxToken xmlAttributeName = SyntaxFactory.Identifier(
+                    leading: SyntaxFactory.TriviaList(SyntaxFactory.Space),
+                    text: attributeName,
+                    trailing: SyntaxFactory.TriviaList());
+
+                XmlNameAttributeSyntax xmlAttribute = SyntaxFactory.XmlNameAttribute(
+                                                                  name: SyntaxFactory.XmlName(xmlAttributeName),
+                                                                  startQuoteToken: SyntaxFactory.Token(SyntaxKind.DoubleQuoteToken),
+                                                                  identifier: SyntaxFactory.IdentifierName(attributeValue),
+                                                                  endQuoteToken: SyntaxFactory.Token(SyntaxKind.DoubleQuoteToken));
+
                 SyntaxList<XmlAttributeSyntax> startTagAttributes = SyntaxFactory.SingletonList<XmlAttributeSyntax>(xmlAttribute);
 
                 startTag = startTag.WithAttributes(startTagAttributes);

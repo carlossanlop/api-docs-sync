@@ -1437,7 +1437,7 @@ public enum MyEnum
 
         string expectedCode = @"namespace MyNamespace;
 /// <summary>This is the MyEnum summary.</summary>" +
-GetRemarks(skipRemarks, "MyEnum", "    ") +
+GetRemarks(skipRemarks, "MyEnum") +
 @"public enum MyEnum
 {
     /// <summary>This is the MyEnum.Value1 summary.</summary>
@@ -1756,7 +1756,7 @@ public struct MyStruct
 
         string expectedCode = @"namespace MyNamespace;
 /// <summary>This is the MyStruct summary.</summary>" +
-GetRemarks(skipRemarks, "MyStruct", "    ") +
+GetRemarks(skipRemarks, "MyStruct") +
 @"public struct MyStruct
 {
     /// <summary>This is the MyStruct constructor summary.</summary>" +
@@ -1779,8 +1779,7 @@ GetRemarks(skipRemarks, "MyIntMethod", "    ") +
     /// <param name=""withGenericArgument"">This is the MyGenericMethod withGenericArgument description.</param>
     /// <returns>This is the MyGenericMethod returns description.</returns>" +
 GetRemarks(skipRemarks, "MyGenericMethod", "    ") +
-@"
-    public T MyGenericMethod<T>(T withGenericArgument) => withGenericArgument;
+@"    public T MyGenericMethod<T>(T withGenericArgument) => withGenericArgument;
     /// <summary>This is the MyField summary.</summary>" +
 GetRemarks(skipRemarks, "MyField", "    ") +
 @"    public double MyField;
@@ -1897,36 +1896,36 @@ public interface MyInterface
 }";
 
         string expectedCode = @"namespace MyNamespace;
-/// <summary>This is the MyInterface summary.</summary>
-/// <remarks>These are the MyInterface remarks.</remarks>
-public interface MyInterface
+/// <summary>This is the MyInterface summary.</summary>" +
+GetRemarks(skipRemarks, "MyInterface") +
+@"public interface MyInterface
 {
-    /// <summary>This is the MyVoidMethod summary.</summary>
-    /// <remarks>These are the MyVoidMethod remarks.</remarks>
-    public void MyVoidMethod();
+    /// <summary>This is the MyVoidMethod summary.</summary>" +
+GetRemarks(skipRemarks, "MyVoidMethod", "    ") +
+@"    public void MyVoidMethod();
     /// <summary>This is the MyIntMethod summary.</summary>
     /// <param name=""withArgument"">This is the MyIntMethod withArgument description.</param>
-    /// <returns>This is the MyIntMethod returns description.</returns>
-    /// <remarks>These are the MyIntMethod remarks.</remarks>
-    public int MyIntMethod(int withArgument);
+    /// <returns>This is the MyIntMethod returns description.</returns>" +
+GetRemarks(skipRemarks, "MyIntMethod", "    ") +
+@"    public int MyIntMethod(int withArgument);
     /// <summary>This is the MyGenericMethod summary.</summary>
     /// <typeparam name=""T"">This is the MyGenericMethod type parameter description.</typeparam>
     /// <param name=""withGenericArgument"">This is the MyGenericMethod withGenericArgument description.</param>
-    /// <returns>This is the MyGenericMethod returns description.</returns>
-    /// <remarks>These are the MyGenericMethod remarks.</remarks>
-    public T MyGenericMethod<T>(T withGenericArgument);
+    /// <returns>This is the MyGenericMethod returns description.</returns>" +
+GetRemarks(skipRemarks, "MyGenericMethod", "    ") +
+@"    public T MyGenericMethod<T>(T withGenericArgument);
     /// <summary>This is the MySetProperty summary.</summary>
-    /// <value>This is the MySetProperty value.</value>
-    /// <remarks>These are the MySetProperty remarks.</remarks>
-    public double MySetProperty { set; }
+    /// <value>This is the MySetProperty value.</value>" +
+GetRemarks(skipRemarks, "MySetProperty", "    ") +
+@"    public double MySetProperty { set; }
     /// <summary>This is the MyGetProperty summary.</summary>
-    /// <value>This is the MyGetProperty value.</value>
-    /// <remarks>These are the MyGetProperty remarks.</remarks>
-    public double MyGetProperty { get; }
+    /// <value>This is the MyGetProperty value.</value>" +
+GetRemarks(skipRemarks, "MyGetProperty", "    ") +
+@"    public double MyGetProperty { get; }
     /// <summary>This is the MyGetSetProperty summary.</summary>
-    /// <value>This is the MyGetSetProperty value.</value>
-    /// <remarks>These are the MyGetSetProperty remarks.</remarks>
-    public double MyGetSetProperty { get; set; }
+    /// <value>This is the MyGetSetProperty value.</value>" +
+GetRemarks(skipRemarks, "MyGetSetProperty", "    ") +
+@"    public double MyGetSetProperty { get; set; }
 }";
 
         List<string> docFiles = new() { docFile };
